@@ -1,13 +1,16 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import { SLEEP_DURATION_MS } from '../data/petTimings'
-import type { FeedAnimationId, Pet } from '../types'
+import type { FeedAnimationId, Pet, PetPosition } from '../types'
 import { playInteractionFeedback } from '../utils/interactionFeedback'
 
 type PetCardProps = {
   feedAnimationQueue?: FeedAnimationId[]
   hatIcon?: string
   onFeedAnimationComplete?: () => void
+  onPetPositionChange?: (position: PetPosition) => void
   pet: Pet
+  petPosition: PetPosition
   scarfIcon?: string
   sleepEndAt?: number
   shoesIcon?: string
@@ -33,6 +36,25 @@ type FeedMotionConfig = {
 
 const frameSorter = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
 const emptyMotionSteps: MotionStep[] = []
+const minimumPetPosition: PetPosition = { x: 0.04, y: 0.32 }
+const maximumPetPosition: PetPosition = { x: 0.96, y: 0.96 }
+
+const clampPositionValue = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value))
+
+const normalizePetPosition = (position: PetPosition): PetPosition => ({
+  x: clampPositionValue(position.x, minimumPetPosition.x, maximumPetPosition.x),
+  y: clampPositionValue(position.y, minimumPetPosition.y, maximumPetPosition.y),
+})
+
+const getPetDepthScale = (positionY: number) => {
+  const depth =
+    (clampPositionValue(positionY, minimumPetPosition.y, maximumPetPosition.y) -
+      minimumPetPosition.y) /
+    (maximumPetPosition.y - minimumPetPosition.y)
+
+  return 0.62 + depth * 0.56
+}
 
 const sortFrameLoaders = (frames: Record<string, FrameLoader>) =>
   Object.entries(frames)
@@ -500,50 +522,179 @@ export const PetCard = ({
   feedAnimationQueue = [],
   hatIcon,
   onFeedAnimationComplete,
+  onPetPositionChange,
   pet,
+  petPosition,
   scarfIcon,
   sleepEndAt,
   shoesIcon,
 }: PetCardProps) => {
   const petName = pet.name.trim() || '小猫'
+  const stageRef = useRef<HTMLButtonElement>(null)
+  const dragStateRef = useRef<{
+    hasMoved: boolean
+    offsetX: number
+    offsetY: number
+    pointerId: number
+    startClientX: number
+    startClientY: number
+  } | null>(null)
+  const suppressNextClickRef = useRef(false)
+  const [displayPosition, setDisplayPosition] = useState(() => normalizePetPosition(petPosition))
+  const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    if (dragStateRef.current) {
+      return
+    }
+
+    setDisplayPosition(normalizePetPosition(petPosition))
+  }, [petPosition])
+
+  const getPositionFromPointer = (
+    event: ReactPointerEvent,
+    offsetX: number,
+    offsetY: number,
+  ) => {
+    const stageRect = stageRef.current?.getBoundingClientRect()
+
+    if (!stageRect) {
+      return displayPosition
+    }
+
+    return normalizePetPosition({
+      x: (event.clientX - stageRect.left - offsetX) / stageRect.width,
+      y: (event.clientY - stageRect.top - offsetY) / stageRect.height,
+    })
+  }
 
   const handlePetTap = () => {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false
+      return
+    }
+
     playInteractionFeedback('cat')
   }
+
+  const handleActorPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return
+    }
+
+    const stageRect = stageRef.current?.getBoundingClientRect()
+
+    if (!stageRect) {
+      return
+    }
+
+    const normalizedPosition = normalizePetPosition(displayPosition)
+    const anchorX = normalizedPosition.x * stageRect.width
+    const anchorY = normalizedPosition.y * stageRect.height
+
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragStateRef.current = {
+      hasMoved: false,
+      offsetX: event.clientX - stageRect.left - anchorX,
+      offsetY: event.clientY - stageRect.top - anchorY,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+    }
+    setIsDragging(true)
+  }
+
+  const handleActorPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return
+    }
+
+    const distance = Math.hypot(
+      event.clientX - dragState.startClientX,
+      event.clientY - dragState.startClientY,
+    )
+
+    if (distance > 4) {
+      dragState.hasMoved = true
+    }
+
+    if (dragState.hasMoved) {
+      setDisplayPosition(getPositionFromPointer(event, dragState.offsetX, dragState.offsetY))
+    }
+  }
+
+  const handleActorPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return
+    }
+
+    const nextPosition = getPositionFromPointer(event, dragState.offsetX, dragState.offsetY)
+
+    if (dragState.hasMoved) {
+      suppressNextClickRef.current = true
+      setDisplayPosition(nextPosition)
+      onPetPositionChange?.(nextPosition)
+    }
+
+    event.currentTarget.releasePointerCapture(event.pointerId)
+    dragStateRef.current = null
+    setIsDragging(false)
+  }
+
+  const petScale = getPetDepthScale(displayPosition.y)
+  const petActorStyle = {
+    '--pet-depth-scale': petScale,
+    '--pet-x': `${displayPosition.x * 100}%`,
+    '--pet-y': `${displayPosition.y * 100}%`,
+  } as CSSProperties
 
   return (
     <section className={`pet-card pet-card--${pet.currentBackground || 'default'}`}>
       <button
-        aria-label={`摸摸${petName}`}
+        aria-label={`摸摸${petName}，也可以拖动摆放位置`}
         className="pet-avatar pet-avatar--interactive"
         data-feedback-kind="none"
         onClick={handlePetTap}
+        ref={stageRef}
         type="button"
       >
-        {hatIcon ? (
-          <span className="pet-avatar__hat" aria-hidden="true">
-            {hatIcon}
-          </span>
-        ) : null}
-        {scarfIcon ? (
-          <span className="pet-avatar__scarf" aria-hidden="true">
-            {scarfIcon}
-          </span>
-        ) : null}
-        {shoesIcon ? (
-          <span className="pet-avatar__shoes" aria-hidden="true">
-            {shoesIcon}
-          </span>
-        ) : null}
-        <span className="pet-avatar__ground" aria-hidden="true" />
-        <div className="pet-avatar__scene">
-          <AnimatedPetArt
-            feedAnimationQueue={feedAnimationQueue}
-            onFeedAnimationComplete={onFeedAnimationComplete}
-            sleepEndAt={sleepEndAt}
-          />
+        <div
+          className={`pet-avatar__actor${isDragging ? ' pet-avatar__actor--dragging' : ''}`}
+          onPointerCancel={handleActorPointerUp}
+          onPointerDown={handleActorPointerDown}
+          onPointerMove={handleActorPointerMove}
+          onPointerUp={handleActorPointerUp}
+          style={petActorStyle}
+        >
+          {hatIcon ? (
+            <span className="pet-avatar__hat" aria-hidden="true">
+              {hatIcon}
+            </span>
+          ) : null}
+          {scarfIcon ? (
+            <span className="pet-avatar__scarf" aria-hidden="true">
+              {scarfIcon}
+            </span>
+          ) : null}
+          {shoesIcon ? (
+            <span className="pet-avatar__shoes" aria-hidden="true">
+              {shoesIcon}
+            </span>
+          ) : null}
+          <span className="pet-avatar__ground" aria-hidden="true" />
+          <div className="pet-avatar__scene">
+            <AnimatedPetArt
+              feedAnimationQueue={feedAnimationQueue}
+              onFeedAnimationComplete={onFeedAnimationComplete}
+              sleepEndAt={sleepEndAt}
+            />
+          </div>
+          <span className="pet-avatar__shadow" />
         </div>
-        <span className="pet-avatar__shadow" />
       </button>
     </section>
   )

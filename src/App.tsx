@@ -464,7 +464,12 @@ function AppLayout() {
           />
 
           <div className="app-header__intro">
-            <p className="eyebrow">儿童互动电子宠物</p>
+            <div className="app-header__topline">
+              <p className="eyebrow">儿童互动电子宠物</p>
+              <p className="app-header__meta app-header__meta--mobile">
+                连续 {meta.streakCount} 天 · 完成 {taskStats.done}/{taskStats.total}
+              </p>
+            </div>
             <div className="app-header__title-row">
               <h1>{titleName}成长记</h1>
               <p className="header-copy">
@@ -473,7 +478,9 @@ function AppLayout() {
             </div>
           </div>
         </div>
-        <p className="app-header__meta">连续 {meta.streakCount} 天 · 完成 {taskStats.done}/{taskStats.total}</p>
+        <p className="app-header__meta app-header__meta--desktop">
+          连续 {meta.streakCount} 天 · 完成 {taskStats.done}/{taskStats.total}
+        </p>
       </header>
 
       <main className="page-container">

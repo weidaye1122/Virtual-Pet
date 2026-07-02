@@ -22,6 +22,7 @@ export const createDefaultMeta = (): AppMeta => {
     lastPlayPenaltyStage: 0,
     lastLowHungerMoodDecayAt: now,
     lastLowCleanMoodDecayAt: now,
+    petPosition: { x: 0.5, y: 0.78 },
     feedAnimationQueue: [],
     lastFeedCycleItemId: '',
     lastPlayCycleItemId: '',

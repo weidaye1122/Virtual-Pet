@@ -4,6 +4,7 @@ import type {
   InventoryState,
   NewTaskInput,
   Pet,
+  PetPosition,
   PointRecord,
   ShopItem,
   Task,
@@ -56,6 +57,7 @@ export type PetStoreContextValue = {
   consumeNextFeedAnimation: () => void
   completeFirstRunSetup: (input: FirstRunSetupInput) => void
   unlockSession: () => void
+  setPetPosition: (position: PetPosition) => void
   setProfileAvatar: (avatarDataUrl: string) => void
   resetAllData: () => void
 }

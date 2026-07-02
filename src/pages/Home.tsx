@@ -17,6 +17,7 @@ export const Home = () => {
     performCareAction,
     moodMax,
     consumeNextFeedAnimation,
+    setPetPosition,
   } = usePetStore()
 
   const getToyEnergyCost = (effect?: { energy?: number }) => Math.max(0, -(effect?.energy ?? 0))
@@ -40,7 +41,9 @@ export const Home = () => {
           feedAnimationQueue={meta.feedAnimationQueue}
           hatIcon={equippedHatItem?.icon}
           onFeedAnimationComplete={consumeNextFeedAnimation}
+          onPetPositionChange={setPetPosition}
           pet={pet}
+          petPosition={meta.petPosition}
           scarfIcon={equippedScarfItem?.icon}
           sleepEndAt={meta.sleepEndAt}
           shoesIcon={equippedShoesItem?.icon}
@@ -50,7 +53,7 @@ export const Home = () => {
           <div className="panel__header">
             <div>
               <p className="eyebrow">成长小目标</p>
-              <h2>离下一次升级还有一点点</h2>
+              <h2>{nextLevelRule ? `下次升级还差 ${growthProgress.remaining} 点成长值` : '已经达到当前最高等级'}</h2>
             </div>
           </div>
           <div className="meter-card">
@@ -64,14 +67,7 @@ export const Home = () => {
             <div className="progress-track">
               <span className="progress-fill progress-fill--orange" style={{ width: `${growthProgress.percentage}%` }} />
             </div>
-            {nextLevelRule ? (
-              <p className="meter-card__hint">
-                <span>{`再获得 ${growthProgress.remaining} 点成长值`}</span>
-                <span>{`就能来到 Lv.${nextLevelRule.level}`}</span>
-              </p>
-            ) : (
-              <p className="meter-card__hint meter-card__hint--single">已经达到当前规则里的最高等级啦</p>
-            )}
+            <p className="meter-card__hint meter-card__hint--single meter-card__hint--level">{`当前等级 Lv.${pet.level}`}</p>
           </div>
 
           <div className="status-grid status-grid--home">

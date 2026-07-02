@@ -14,6 +14,11 @@ export type Pet = {
   currentBackground?: string
 }
 
+export type PetPosition = {
+  x: number
+  y: number
+}
+
 export type TaskStatus = 'todo' | 'done' | 'claimed'
 
 export type Task = {
@@ -65,6 +70,7 @@ export type AppMeta = {
   lastPlayPenaltyStage?: number
   lastLowHungerMoodDecayAt?: number
   lastLowCleanMoodDecayAt?: number
+  petPosition: PetPosition
   feedAnimationQueue: FeedAnimationId[]
   lastFeedCycleItemId: FeedCycleAnimationId | ''
   lastPlayCycleItemId: PlayCycleAnimationId | ''

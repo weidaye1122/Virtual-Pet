@@ -15,6 +15,7 @@ import type {
   InventoryState,
   NewTaskInput,
   Pet,
+  PetPosition,
   PersistedAppState,
   PlayCycleAnimationId,
   PointRecord,
@@ -87,12 +88,13 @@ const queuedConsumableAnimationIdSet = new Set<FeedAnimationId>([
 let shouldOverwriteRemoteOnNextHydration = false
 
 const clampStat = (value: number, max = 100) => Math.max(0, Math.min(max, Math.round(value)))
-const getMoodMax = (pet: Pet) => {
-  const clothingBonus = pet.currentHat || pet.currentScarf || pet.currentShoes ? 10 : 0
-  const roomBonus = pet.currentBackground && pet.currentBackground !== 'default' ? 10 : 0
-
-  return 80 + clothingBonus + roomBonus
-}
+const clampRatio = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value))
+const getMoodMax = (_pet: Pet) => 100
+const normalizePetPosition = (position: Partial<PetPosition> | undefined): PetPosition => ({
+  x: clampRatio(typeof position?.x === 'number' ? position.x : 0.5, 0.04, 0.96),
+  y: clampRatio(typeof position?.y === 'number' ? position.y : 0.78, 0.32, 0.96),
+})
 const isConsumableItemType = (type: ShopItem['type']): type is 'food' | 'toy' | 'care' =>
   type === 'food' || type === 'toy' || type === 'care'
 const isQueuedConsumableAnimationId = (itemId: string): itemId is FeedAnimationId =>
@@ -381,6 +383,7 @@ const normalizeMeta = (meta: AppMeta): AppMeta => {
       typeof meta.lastLowCleanMoodDecayAt === 'number'
         ? meta.lastLowCleanMoodDecayAt
         : defaults.lastLowCleanMoodDecayAt,
+    petPosition: normalizePetPosition(meta.petPosition),
     feedAnimationQueue: sanitizeFeedAnimationQueue(meta.feedAnimationQueue),
     lastFeedCycleItemId: getLastFeedCycleItemId(meta.lastFeedCycleItemId),
     lastPlayCycleItemId: getLastPlayCycleItemId(meta.lastPlayCycleItemId),
@@ -1667,6 +1670,16 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
     setIsSessionUnlocked(true)
   }
 
+  const setPetPosition = (position: PetPosition) => {
+    commitStore((current) => ({
+      ...current,
+      meta: normalizeMeta({
+        ...current.meta,
+        petPosition: position,
+      }),
+    }))
+  }
+
   const setProfileAvatar = (avatarDataUrl: string) => {
     commitStore((current) => ({
       ...current,
@@ -1752,6 +1765,7 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
         consumeNextFeedAnimation,
         completeFirstRunSetup,
         unlockSession,
+        setPetPosition,
         setProfileAvatar,
         resetAllData,
       }}

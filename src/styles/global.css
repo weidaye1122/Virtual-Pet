@@ -116,6 +116,10 @@ a {
   flex-shrink: 0;
 }
 
+.app-header__meta--mobile {
+  display: none;
+}
+
 .profile-avatar {
   position: relative;
   display: inline-grid;
@@ -770,11 +774,13 @@ a {
 }
 
 .pet-avatar {
-  position: relative;
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  min-height: 320px;
-  margin-top: 0;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
 }
 
 .pet-avatar--interactive {
@@ -791,6 +797,28 @@ a {
   outline: 3px solid rgba(255, 184, 77, 0.68);
   outline-offset: 6px;
   border-radius: 28px;
+}
+
+.pet-avatar__actor {
+  position: absolute;
+  left: var(--pet-x, 50%);
+  top: var(--pet-y, 78%);
+  z-index: 2;
+  width: min(92%, 360px);
+  height: 240px;
+  cursor: grab;
+  touch-action: none;
+  transform: translate(-50%, -100%) scale(var(--pet-depth-scale, 1));
+  transform-origin: center bottom;
+  transition: filter 180ms ease;
+  user-select: none;
+  will-change: left, top, transform;
+}
+
+.pet-avatar__actor--dragging {
+  z-index: 3;
+  cursor: grabbing;
+  filter: drop-shadow(0 18px 20px rgba(75, 63, 53, 0.14));
 }
 
 .pet-avatar__hat,
@@ -826,7 +854,7 @@ a {
   display: block;
   position: absolute;
   left: 50%;
-  bottom: 42px;
+  bottom: 18px;
   width: min(88%, 360px);
   height: 44px;
   transform: translateX(-50%);
@@ -849,11 +877,9 @@ a {
 
 .pet-avatar__scene {
   position: absolute;
-  left: 50%;
-  bottom: -8px;
-  width: min(92%, 360px);
-  height: 240px;
-  transform: translate(-50%, 35%);
+  inset: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -898,7 +924,7 @@ a {
   display: block;
   position: absolute;
   left: 50%;
-  bottom: -50px;
+  bottom: -24px;
   width: min(70%, 260px);
   height: 24px;
   transform: translateX(-50%);
@@ -981,6 +1007,11 @@ a {
 
 .meter-card__hint--single {
   gap: 0;
+}
+
+.meter-card__hint--level {
+  font-size: 1.04rem;
+  font-weight: 700;
 }
 
 .meter-card__value-label {
@@ -1968,6 +1999,31 @@ a {
     padding: 16px 14px 112px;
   }
 
+  .app-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .app-header__main {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .app-header__intro {
+    flex: 1 1 auto;
+    padding-top: 2px;
+  }
+
+  .app-header__topline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 3px;
+  }
+
   .panel__header {
     flex-direction: column;
   }
@@ -2002,8 +2058,37 @@ a {
   }
 
   .app-header__title-row {
+    flex-direction: column;
     align-items: flex-start;
-    gap: 6px;
+    gap: 3px;
+  }
+
+  .app-header h1 {
+    font-size: 1.95rem;
+    line-height: 1.12;
+  }
+
+  .eyebrow {
+    margin-bottom: 0;
+    font-size: 0.8rem;
+  }
+
+  .header-copy {
+    font-size: 0.88rem;
+    line-height: 1.35;
+  }
+
+  .app-header__meta--desktop {
+    display: none;
+  }
+
+  .app-header__meta--mobile {
+    display: block;
+  }
+
+  .app-header__meta {
+    padding-top: 0;
+    font-size: 0.78rem;
   }
 
   .growth-map {
@@ -2024,21 +2109,20 @@ a {
   }
 
   .pet-avatar {
-    min-height: 270px;
+    min-height: 0;
   }
 
-  .pet-avatar__scene {
-    bottom: -6px;
+  .pet-avatar__actor {
     width: min(100%, 290px);
     height: 210px;
   }
 
   .pet-avatar__ground {
-    bottom: 38px;
+    bottom: 16px;
   }
 
   .pet-avatar__shadow {
-    bottom: -44px;
+    bottom: -22px;
   }
 
   .pet-avatar__hat {
