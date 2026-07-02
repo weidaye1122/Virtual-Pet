@@ -63,6 +63,8 @@ export type AppMeta = {
   passwordSalt?: string
   setupCompletedAt?: string
   sleepEndAt?: number
+  sleepStartedAt?: number
+  sleepClickCount?: number
   lastHungerDecayAt?: number
   lastCleanDecayAt?: number
   lastEnergyDecayAt?: number

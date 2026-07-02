@@ -64,8 +64,10 @@ jobs:
           context: .
           push: true
           tags: |
+            ${{ steps.vars.outputs.ghcr_image }}:${{ steps.vars.outputs.version }}
             ${{ steps.vars.outputs.ghcr_image }}:${{ steps.vars.outputs.image_version }}
             ${{ steps.vars.outputs.ghcr_image }}:latest
+            ${{ steps.vars.outputs.dockerhub_image }}:${{ steps.vars.outputs.version }}
             ${{ steps.vars.outputs.dockerhub_image }}:${{ steps.vars.outputs.image_version }}
             ${{ steps.vars.outputs.dockerhub_image }}:latest
           labels: |

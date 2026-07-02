@@ -13,6 +13,7 @@ type PetCardProps = {
   petPosition: PetPosition
   scarfIcon?: string
   sleepEndAt?: number
+  sleepStartedAt?: number
   shoesIcon?: string
 }
 
@@ -207,11 +208,25 @@ const getMotionStepAtElapsed = (steps: MotionStep[], elapsed: number) => {
   }
 }
 
+const getSleepElapsed = (sleepEndAt: number | undefined, sleepStartedAt: number | undefined) => {
+  const fallbackSleepStartedAt = sleepEndAt ? sleepEndAt - SLEEP_DURATION_MS : Date.now()
+  const activeSleepStartedAt =
+    typeof sleepStartedAt === 'number' && sleepStartedAt > 0
+      ? sleepStartedAt
+      : fallbackSleepStartedAt
+
+  return Date.now() - activeSleepStartedAt
+}
+
 const AnimatedPetArt = ({
   feedAnimationQueue = [],
   onFeedAnimationComplete,
   sleepEndAt,
-}: Pick<PetCardProps, 'feedAnimationQueue' | 'onFeedAnimationComplete' | 'sleepEndAt'>) => {
+  sleepStartedAt,
+}: Pick<
+  PetCardProps,
+  'feedAnimationQueue' | 'onFeedAnimationComplete' | 'sleepEndAt' | 'sleepStartedAt'
+>) => {
   const isSleeping = Boolean(sleepEndAt && sleepEndAt > Date.now())
   const [defaultMotionSteps, setDefaultMotionSteps] = useState<MotionStep[]>(emptyMotionSteps)
   const [sleepMotionSteps, setSleepMotionSteps] = useState<MotionStep[]>(emptyMotionSteps)
@@ -347,7 +362,7 @@ const AnimatedPetArt = ({
     if (isSleeping && sleepEndAt) {
       const activeSleepStep = getMotionStepAtElapsed(
         sleepMotionSteps,
-        Date.now() - (sleepEndAt - SLEEP_DURATION_MS),
+        getSleepElapsed(sleepEndAt, sleepStartedAt),
       )
 
       setSleepPlaybackIndex(activeSleepStep?.index ?? 0)
@@ -356,7 +371,7 @@ const AnimatedPetArt = ({
 
     setSleepPlaybackIndex(0)
     setDefaultPlaybackIndex(0)
-  }, [isSleeping, sleepEndAt, sleepMotionSteps])
+  }, [isSleeping, sleepEndAt, sleepStartedAt, sleepMotionSteps])
 
   useEffect(() => {
     setFeedPlaybackIndex(0)
@@ -424,7 +439,7 @@ const AnimatedPetArt = ({
 
     const activeSleepStep = getMotionStepAtElapsed(
       sleepMotionSteps,
-      Date.now() - (sleepEndAt - SLEEP_DURATION_MS),
+      getSleepElapsed(sleepEndAt, sleepStartedAt),
     )
 
     if (!activeSleepStep) {
@@ -447,7 +462,7 @@ const AnimatedPetArt = ({
     }, activeSleepStep.remaining)
 
     return () => window.clearTimeout(timeoutId)
-  }, [isSleeping, sleepEndAt, sleepMotionSteps, sleepPlaybackIndex])
+  }, [isSleeping, sleepEndAt, sleepStartedAt, sleepMotionSteps, sleepPlaybackIndex])
 
   useEffect(() => {
     if (
@@ -527,6 +542,7 @@ export const PetCard = ({
   petPosition,
   scarfIcon,
   sleepEndAt,
+  sleepStartedAt,
   shoesIcon,
 }: PetCardProps) => {
   const petName = pet.name.trim() || '小猫'
@@ -691,6 +707,7 @@ export const PetCard = ({
               feedAnimationQueue={feedAnimationQueue}
               onFeedAnimationComplete={onFeedAnimationComplete}
               sleepEndAt={sleepEndAt}
+              sleepStartedAt={sleepStartedAt}
             />
           </div>
           <span className="pet-avatar__shadow" />

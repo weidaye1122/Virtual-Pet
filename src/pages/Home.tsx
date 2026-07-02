@@ -1,7 +1,17 @@
+import { useEffect, useState } from 'react'
 import { ActionButton } from '../components/ActionButton'
 import { PetCard } from '../components/PetCard'
 import { StatusBar } from '../components/StatusBar'
+import { SLEEP_MAX_CLICK_COUNT } from '../data/petTimings'
 import { usePetStore } from '../hooks/usePetStore'
+
+const formatSleepCountdown = (remainingMs: number) => {
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
 
 export const Home = () => {
   const {
@@ -19,6 +29,25 @@ export const Home = () => {
     consumeNextFeedAnimation,
     setPetPosition,
   } = usePetStore()
+  const [now, setNow] = useState(() => Date.now())
+
+  const sleepEndAt = meta.sleepEndAt ?? 0
+
+  useEffect(() => {
+    setNow(Date.now())
+
+    if (!sleepEndAt || sleepEndAt <= Date.now()) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now())
+    }, 1000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [sleepEndAt])
 
   const getToyEnergyCost = (effect?: { energy?: number }) => Math.max(0, -(effect?.energy ?? 0))
   const hasConsumableByType = (type: 'food' | 'toy' | 'care') =>
@@ -32,7 +61,12 @@ export const Home = () => {
   const canFeed = hasConsumableByType('food')
   const canWash = hasConsumableByType('care')
   const canPlay = hasConsumableByType('toy')
-  const isSleeping = (meta.sleepEndAt ?? 0) > Date.now()
+  const isSleeping = sleepEndAt > now
+  const sleepClickCount = isSleeping
+    ? Math.max(1, Math.min(SLEEP_MAX_CLICK_COUNT, meta.sleepClickCount ?? 0))
+    : 0
+  const sleepLimitReached = isSleeping && sleepClickCount >= SLEEP_MAX_CLICK_COUNT
+  const sleepCountdownText = isSleeping ? formatSleepCountdown(sleepEndAt - now) : ''
 
   return (
     <div className="page-stack page-stack--home">
@@ -46,6 +80,7 @@ export const Home = () => {
           petPosition={meta.petPosition}
           scarfIcon={equippedScarfItem?.icon}
           sleepEndAt={meta.sleepEndAt}
+          sleepStartedAt={meta.sleepStartedAt}
           shoesIcon={equippedShoesItem?.icon}
         />
 
@@ -84,7 +119,23 @@ export const Home = () => {
           <ActionButton disabled={!canFeed} feedbackKind="careAction" icon="🐟" label="喂一喂" onClick={() => performCareAction('feed')} variant="soft" />
           <ActionButton disabled={!canWash} feedbackKind="careAction" icon="🛁" label="洗一洗" onClick={() => performCareAction('wash')} variant="secondary" />
           <ActionButton disabled={!canPlay} feedbackKind="careAction" icon="🧶" label="玩一玩" onClick={() => performCareAction('play')} variant="soft" />
-          <ActionButton disabled={isSleeping} feedbackKind="careAction" icon="😴" label="睡一觉" onClick={() => performCareAction('sleep')} variant="secondary" />
+          <div className={`sleep-action${isSleeping ? ' sleep-action--active' : ''}`}>
+            <ActionButton
+              disabled={sleepLimitReached}
+              feedbackKind="careAction"
+              icon="😴"
+              label="睡一觉"
+              onClick={() => performCareAction('sleep')}
+              variant="secondary"
+            />
+            {isSleeping ? (
+              <span className="sleep-action__countdown" aria-live="polite">
+                <span>睡觉倒计时</span>
+                <strong>{sleepCountdownText}</strong>
+                <span>{sleepClickCount}/10</span>
+              </span>
+            ) : null}
+          </div>
         </div>
       </section>
     </div>

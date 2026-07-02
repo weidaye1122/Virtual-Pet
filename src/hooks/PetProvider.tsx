@@ -6,7 +6,7 @@ import { feedAnimationOrder, playAnimationOrder } from '../data/feedAnimationCon
 import { defaultPet } from '../data/defaultPet'
 import { defaultShopItems } from '../data/defaultShopItems'
 import { defaultTasks } from '../data/defaultTasks'
-import { SLEEP_DURATION_MS } from '../data/petTimings'
+import { SLEEP_DURATION_MS, SLEEP_MAX_CLICK_COUNT } from '../data/petTimings'
 import { levelRules } from '../data/levelRules'
 import type {
   AppMeta,
@@ -90,6 +90,11 @@ let shouldOverwriteRemoteOnNextHydration = false
 const clampStat = (value: number, max = 100) => Math.max(0, Math.min(max, Math.round(value)))
 const clampRatio = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value))
+const normalizeSleepClickCount = (value: number | undefined) =>
+  Math.max(
+    0,
+    Math.min(SLEEP_MAX_CLICK_COUNT, Number.isFinite(value) ? Math.floor(value ?? 0) : 0),
+  )
 const getMoodMax = (_pet: Pet) => 100
 const normalizePetPosition = (position: Partial<PetPosition> | undefined): PetPosition => ({
   x: clampRatio(typeof position?.x === 'number' ? position.x : 0.5, 0.04, 0.96),
@@ -360,6 +365,8 @@ const normalizeMeta = (meta: AppMeta): AppMeta => {
     passwordSalt: typeof meta.passwordSalt === 'string' ? meta.passwordSalt : '',
     setupCompletedAt: typeof meta.setupCompletedAt === 'string' ? meta.setupCompletedAt : '',
     sleepEndAt: typeof meta.sleepEndAt === 'number' ? meta.sleepEndAt : 0,
+    sleepStartedAt: typeof meta.sleepStartedAt === 'number' ? meta.sleepStartedAt : 0,
+    sleepClickCount: normalizeSleepClickCount(meta.sleepClickCount),
     lastHungerDecayAt:
       typeof meta.lastHungerDecayAt === 'number'
         ? meta.lastHungerDecayAt
@@ -884,6 +891,8 @@ const finishSleepInStore = (current: PetStoreData, now = Date.now()) => {
     meta: normalizeMeta({
       ...current.meta,
       sleepEndAt: 0,
+      sleepStartedAt: 0,
+      sleepClickCount: 0,
       lastEnergyDecayAt: now,
     }),
   }
@@ -1222,32 +1231,50 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
   const performCareAction = (action: 'feed' | 'wash' | 'play' | 'sleep') => {
     if (action === 'sleep') {
       const now = Date.now()
-      const currentSleepEndAt = storeRef.current.meta.sleepEndAt ?? 0
+      let currentStore = storeRef.current
+      const currentSleepEndAt = currentStore.meta.sleepEndAt ?? 0
 
       if (currentSleepEndAt && currentSleepEndAt <= now) {
-        const finishedStore = finishSleepInStore(storeRef.current, now)
+        const finishedStore = finishSleepInStore(currentStore, now)
 
-        if (finishedStore !== storeRef.current) {
-          commitStore(() => finishedStore)
+        if (finishedStore !== currentStore) {
+          currentStore = commitStore(() => finishedStore)
           showToast('睡醒啦，体力恢复了 10 点！')
         }
       }
 
-      if (currentSleepEndAt > now) {
-        const remainingSeconds = Math.ceil((currentSleepEndAt - now) / 1000)
-        showToast(`还在睡觉哦，再等 ${remainingSeconds} 秒。`)
+      const activeSleepEndAt = currentStore.meta.sleepEndAt ?? 0
+      const activeSleepClickCount =
+        activeSleepEndAt > now && !currentStore.meta.sleepClickCount
+          ? 1
+          : normalizeSleepClickCount(currentStore.meta.sleepClickCount)
+
+      if (activeSleepEndAt > now && activeSleepClickCount >= SLEEP_MAX_CLICK_COUNT) {
+        showToast('这一觉最多点 10 次啦，等小猫睡醒再继续。')
         return
       }
+
+      const nextSleepClickCount = activeSleepEndAt > now ? activeSleepClickCount + 1 : 1
+      const nextSleepEndAt =
+        (activeSleepEndAt > now ? activeSleepEndAt : now) + SLEEP_DURATION_MS
+      const nextSleepStartedAt =
+        activeSleepEndAt > now ? currentStore.meta.sleepStartedAt || now : now
 
       commitStore((current) => ({
         ...current,
         meta: normalizeMeta({
           ...current.meta,
-          sleepEndAt: now + SLEEP_DURATION_MS,
+          sleepEndAt: nextSleepEndAt,
+          sleepStartedAt: nextSleepStartedAt,
+          sleepClickCount: nextSleepClickCount,
         }),
       }))
 
-      showToast('已经睡下啦，1 分钟后恢复 10 点体力！')
+      showToast(
+        nextSleepClickCount === 1
+          ? '已经睡下啦，1 分钟后恢复 10 点体力！'
+          : `已加 1 分钟，这一觉 ${nextSleepClickCount}/10 次。`,
+      )
       return
     }
 

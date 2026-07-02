@@ -15,6 +15,8 @@ export const createDefaultMeta = (): AppMeta => {
     passwordSalt: '',
     setupCompletedAt: '',
     sleepEndAt: 0,
+    sleepStartedAt: 0,
+    sleepClickCount: 0,
     lastHungerDecayAt: now,
     lastCleanDecayAt: now,
     lastEnergyDecayAt: now,
