@@ -26,10 +26,8 @@ jobs:
         id: vars
         run: |
           VERSION="$(node -e "console.log(JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version)")"
-          DEPRECATED_SHORT_TAG="$(node -e "const [major, minor] = JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version.split('.'); console.log([major, minor].join('.'))")"
 
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "deprecated_short_tag=${DEPRECATED_SHORT_TAG}" >> "${GITHUB_OUTPUT}"
           echo "ghcr_image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}" >> "${GITHUB_OUTPUT}"
           echo "dockerhub_image=docker.io/${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}" >> "${GITHUB_OUTPUT}"
 
@@ -57,37 +55,6 @@ jobs:
         with:
           username: ${{ env.DOCKERHUB_NAMESPACE }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Remove deprecated GHCR short tag
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_OWNER: ${{ github.repository_owner }}
-          DEPRECATED_SHORT_TAG: ${{ steps.vars.outputs.deprecated_short_tag }}
-        run: |
-          VERSION_IDS="$(
-            curl -fsSL \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/users/${GH_OWNER}/packages/container/${IMAGE_NAME}/versions?per_page=100" \
-              | jq -r --arg tag "${DEPRECATED_SHORT_TAG}" '.[] | select((.metadata.container.tags // []) == [$tag]) | .id'
-          )"
-
-          if [ -z "${VERSION_IDS}" ]; then
-            echo "No deprecated GHCR short tag ${DEPRECATED_SHORT_TAG} to delete."
-            exit 0
-          fi
-
-          for VERSION_ID in ${VERSION_IDS}; do
-            curl -fsSL \
-              -X DELETE \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/users/${GH_OWNER}/packages/container/${IMAGE_NAME}/versions/${VERSION_ID}"
-            echo "Deleted GHCR package version ${VERSION_ID} for ${DEPRECATED_SHORT_TAG}."
-          done
 
       - name: Build and publish release images
         uses: docker/build-push-action@v6
