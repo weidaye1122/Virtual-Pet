@@ -771,6 +771,30 @@ a {
   color: #fffaf2;
 }
 
+.pet-card--dessert-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/dessert-room.png'),
+    linear-gradient(180deg, #fff3dc 0%, #ffd8d8 100%);
+}
+
+.pet-card--undersea-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/undersea-room.png'),
+    linear-gradient(180deg, #d8f7ff 0%, #d8f3e8 100%);
+}
+
+.pet-card--mushroom-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/mushroom-room.png'),
+    linear-gradient(180deg, #fff0c8 0%, #cfeec6 100%);
+}
+
+.pet-card--cloud-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/cloud-room.png'),
+    linear-gradient(180deg, #f7fbff 0%, #eadfff 100%);
+}
+
 .pet-card__bubble {
   position: relative;
   z-index: 1;
@@ -910,7 +934,11 @@ a {
 .pet-card--grass-background .pet-avatar__ground,
 .pet-card--star-background .pet-avatar__ground,
 .pet-card--princess-room .pet-avatar__ground,
-.pet-card--kuromi-room .pet-avatar__ground {
+.pet-card--kuromi-room .pet-avatar__ground,
+.pet-card--dessert-room .pet-avatar__ground,
+.pet-card--undersea-room .pet-avatar__ground,
+.pet-card--mushroom-room .pet-avatar__ground,
+.pet-card--cloud-room .pet-avatar__ground {
   opacity: 0;
 }
 

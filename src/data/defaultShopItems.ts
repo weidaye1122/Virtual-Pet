@@ -15,6 +15,8 @@ const CARE_EFFECT = {
   mood: 2,
 } as const
 
+const BACKGROUND_PRICE = 150
+
 export const defaultShopItems: ShopItem[] = [
   {
     id: 'fish-snack',
@@ -131,7 +133,7 @@ export const defaultShopItems: ShopItem[] = [
     name: '青草小院',
     icon: '🌿',
     type: 'background',
-    price: 100,
+    price: BACKGROUND_PRICE,
     owned: false,
     description: '把房间换成春天小草地，空气都变清新啦。',
   },
@@ -140,7 +142,7 @@ export const defaultShopItems: ShopItem[] = [
     name: '星空房间',
     icon: '🌌',
     type: 'background',
-    price: 150,
+    price: BACKGROUND_PRICE,
     owned: false,
     description: '抬头就是一整片星空，晚上会更有做梦的气氛。',
   },
@@ -149,7 +151,7 @@ export const defaultShopItems: ShopItem[] = [
     name: '公主房间',
     icon: '👑',
     type: 'background',
-    price: 200,
+    price: BACKGROUND_PRICE,
     owned: false,
     description: '像棉花糖一样软软粉粉的梦幻房间。',
   },
@@ -158,8 +160,44 @@ export const defaultShopItems: ShopItem[] = [
     name: '库洛米房间',
     icon: '🖤',
     type: 'background',
-    price: 250,
+    price: BACKGROUND_PRICE,
     owned: false,
     description: '带一点俏皮和神秘感，像住进了库洛米主题小天地。',
+  },
+  {
+    id: 'dessert-room',
+    name: '奶油甜品屋主题',
+    icon: '🍰',
+    type: 'background',
+    price: BACKGROUND_PRICE,
+    owned: false,
+    description: '奶油色的小甜品屋，蛋糕床和马卡龙抱枕都软乎乎的。',
+  },
+  {
+    id: 'undersea-room',
+    name: '海底泡泡主题',
+    icon: '🐚',
+    type: 'background',
+    price: BACKGROUND_PRICE,
+    owned: false,
+    description: '贝壳窝、泡泡墙纸和水母灯，把房间变成轻轻摇晃的海底。',
+  },
+  {
+    id: 'mushroom-room',
+    name: '森林蘑菇屋主题',
+    icon: '🍄',
+    type: 'background',
+    price: BACKGROUND_PRICE,
+    owned: false,
+    description: '蘑菇小屋和树洞书架围起来，像走进温暖的童话森林。',
+  },
+  {
+    id: 'cloud-room',
+    name: '云朵梦境主题',
+    icon: '☁️',
+    type: 'background',
+    price: BACKGROUND_PRICE,
+    owned: false,
+    description: '云朵床、彩虹楼梯和月亮灯，白天也像睡在软软的梦里。',
   },
 ]
