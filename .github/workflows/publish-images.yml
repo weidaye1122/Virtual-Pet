@@ -26,10 +26,8 @@ jobs:
         id: vars
         run: |
           VERSION="$(node -e "console.log(JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version)")"
-          IMAGE_VERSION="$(node -e "const [major, minor] = JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version.split('.'); console.log([major, minor].join('.'))")"
 
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "image_version=${IMAGE_VERSION}" >> "${GITHUB_OUTPUT}"
           echo "ghcr_image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}" >> "${GITHUB_OUTPUT}"
           echo "dockerhub_image=docker.io/${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}" >> "${GITHUB_OUTPUT}"
 
@@ -65,10 +63,8 @@ jobs:
           push: true
           tags: |
             ${{ steps.vars.outputs.ghcr_image }}:${{ steps.vars.outputs.version }}
-            ${{ steps.vars.outputs.ghcr_image }}:${{ steps.vars.outputs.image_version }}
             ${{ steps.vars.outputs.ghcr_image }}:latest
             ${{ steps.vars.outputs.dockerhub_image }}:${{ steps.vars.outputs.version }}
-            ${{ steps.vars.outputs.dockerhub_image }}:${{ steps.vars.outputs.image_version }}
             ${{ steps.vars.outputs.dockerhub_image }}:latest
           labels: |
             org.opencontainers.image.title=Electronic Pet Cat
