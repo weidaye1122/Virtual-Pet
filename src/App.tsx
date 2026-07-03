@@ -6,6 +6,7 @@ import type {
   SyntheticEvent,
 } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { AppUpdatePrompt } from './components/AppUpdatePrompt'
 import { AuthGate } from './components/AuthGate'
 import { BottomNav } from './components/BottomNav'
 import { LevelUpCelebration } from './components/LevelUpCelebration'
@@ -503,6 +504,7 @@ export default function App() {
   return (
     <ToastProvider>
       <PetProvider>
+        <AppUpdatePrompt />
         <AppLayout />
       </PetProvider>
     </ToastProvider>

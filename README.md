@@ -95,10 +95,10 @@ docker compose -f compose.yaml up -d --build
 
 项目已经准备好镜像发布流程。代码推到 `main` 后，GitHub Actions 会同步构建并推送：
 
-- `ghcr.io/weidaye1122/electronic-pet-cat:1.1.1`
+- `ghcr.io/weidaye1122/electronic-pet-cat:1.1.2`
 - `ghcr.io/weidaye1122/electronic-pet-cat:1.1`
 - `ghcr.io/weidaye1122/electronic-pet-cat:latest`
-- `weidaye1122/electronic-pet-cat:1.1.1`
+- `weidaye1122/electronic-pet-cat:1.1.2`
 - `weidaye1122/electronic-pet-cat:1.1`
 - `weidaye1122/electronic-pet-cat:latest`
 

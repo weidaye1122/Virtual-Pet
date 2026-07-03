@@ -47,6 +47,16 @@ const isInsideDirectory = (parentPath, childPath) => {
   return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath))
 }
 
+const getStaticCacheControl = (filePath) => {
+  if (extname(filePath) === '.html' || filePath.endsWith('/app-version.json')) {
+    return 'no-store'
+  }
+
+  return filePath.includes('/assets/')
+    ? 'public, max-age=31536000, immutable'
+    : 'public, max-age=300'
+}
+
 const formatHostForUrl = (value) => {
   if (value === '0.0.0.0') {
     return '127.0.0.1'
@@ -166,7 +176,7 @@ const serveStaticFile = async (requestPath, response) => {
       const indexPath = join(filePath, 'index.html')
       const indexBuffer = await readFile(indexPath)
       send(response, 200, indexBuffer, {
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'no-store',
         'Content-Type': 'text/html; charset=utf-8',
       })
       return
@@ -175,7 +185,7 @@ const serveStaticFile = async (requestPath, response) => {
     const content = await readFile(filePath)
     const mimeType = mimeTypes[extname(filePath)] || 'application/octet-stream'
     send(response, 200, content, {
-      'Cache-Control': filePath.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
+      'Cache-Control': getStaticCacheControl(filePath),
       'Content-Type': mimeType,
     })
   } catch (error) {

@@ -1714,6 +1714,46 @@ a {
   animation: toastIn 180ms ease;
 }
 
+.app-update-prompt {
+  position: fixed;
+  right: 14px;
+  bottom: calc(92px + max(12px, env(safe-area-inset-bottom)));
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(92vw, 390px);
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+  background: rgba(75, 63, 53, 0.94);
+  color: #fffaf6;
+  box-shadow: 0 18px 30px rgba(75, 63, 53, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.app-update-prompt__text {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.app-update-prompt__button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #fff3cf;
+  color: #513d26;
+  font: inherit;
+  font-weight: 800;
+  box-shadow: 0 10px 18px rgba(32, 20, 12, 0.18);
+}
+
+.app-update-prompt__button:disabled {
+  opacity: 0.72;
+}
+
 .level-up-celebration {
   position: fixed;
   inset: 0;
