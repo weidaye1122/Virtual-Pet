@@ -17,6 +17,7 @@ export const createDefaultMeta = (): AppMeta => {
     sleepEndAt: 0,
     sleepStartedAt: 0,
     sleepClickCount: 0,
+    sleepRecoveredEnergy: 0,
     lastHungerDecayAt: now,
     lastCleanDecayAt: now,
     lastEnergyDecayAt: now,

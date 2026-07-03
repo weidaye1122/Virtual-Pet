@@ -60,12 +60,18 @@ const CLEAN_DECAY_MS = 3 * 60 * 60 * 1000
 const CLEAN_DECAY_VALUE = 5
 const ENERGY_DECAY_MS = 2 * 60 * 60 * 1000
 const ENERGY_DECAY_VALUE = 4
-const LOW_NEED_MOOD_DECAY_MS = 6 * 60 * 60 * 1000
-const LOW_NEED_MOOD_DECAY_VALUE = 3
-const PLAY_MOOD_STAGE_ONE_MS = 12 * 60 * 60 * 1000
-const PLAY_MOOD_STAGE_TWO_MS = 24 * 60 * 60 * 1000
-const PLAY_MOOD_STAGE_ONE_VALUE = 6
-const PLAY_MOOD_STAGE_TWO_VALUE = 8
+const NEED_MOOD_DECAY_THRESHOLD = 50
+const LOW_NEED_MOOD_DECAY_MS = 3 * 60 * 60 * 1000
+const LOW_NEED_MOOD_DECAY_VALUE = 5
+const PLAY_MOOD_STAGE_ONE_MS = 8 * 60 * 60 * 1000
+const PLAY_MOOD_STAGE_TWO_MS = 16 * 60 * 60 * 1000
+const PLAY_MOOD_STAGE_ONE_VALUE = 8
+const PLAY_MOOD_STAGE_TWO_VALUE = 10
+const SLEEP_ENERGY_RECOVERY_VALUE = 10
+const SLEEP_ENERGY_RECOVERY_TICK_MS = Math.max(
+  1000,
+  Math.floor(SLEEP_DURATION_MS / SLEEP_ENERGY_RECOVERY_VALUE),
+)
 const REMOTE_AVATAR_SYNC_MS = 15_000
 const removedShopItemIds = new Set([
   'pumpkin',
@@ -95,6 +101,8 @@ const normalizeSleepClickCount = (value: number | undefined) =>
     0,
     Math.min(SLEEP_MAX_CLICK_COUNT, Number.isFinite(value) ? Math.floor(value ?? 0) : 0),
   )
+const normalizeSleepRecoveredEnergy = (value: number | undefined) =>
+  Math.max(0, Number.isFinite(value) ? Math.floor(value ?? 0) : 0)
 const getMoodMax = (_pet: Pet) => 100
 const normalizePetPosition = (position: Partial<PetPosition> | undefined): PetPosition => ({
   x: clampRatio(typeof position?.x === 'number' ? position.x : 0.5, 0.04, 0.96),
@@ -367,6 +375,7 @@ const normalizeMeta = (meta: AppMeta): AppMeta => {
     sleepEndAt: typeof meta.sleepEndAt === 'number' ? meta.sleepEndAt : 0,
     sleepStartedAt: typeof meta.sleepStartedAt === 'number' ? meta.sleepStartedAt : 0,
     sleepClickCount: normalizeSleepClickCount(meta.sleepClickCount),
+    sleepRecoveredEnergy: normalizeSleepRecoveredEnergy(meta.sleepRecoveredEnergy),
     lastHungerDecayAt:
       typeof meta.lastHungerDecayAt === 'number'
         ? meta.lastHungerDecayAt
@@ -603,11 +612,13 @@ const applyConsumableEffectInStore = (
       lastPlayAt: item.type === 'toy' ? now : current.meta.lastPlayAt,
       lastPlayPenaltyStage: item.type === 'toy' ? 0 : current.meta.lastPlayPenaltyStage,
       lastLowHungerMoodDecayAt:
-        item.type === 'food' && nextPet.hunger >= 40
+        item.type === 'food' && nextPet.hunger >= NEED_MOOD_DECAY_THRESHOLD
           ? now
           : current.meta.lastLowHungerMoodDecayAt,
       lastLowCleanMoodDecayAt:
-        item.type === 'care' && nextPet.clean >= 40 ? now : current.meta.lastLowCleanMoodDecayAt,
+        item.type === 'care' && nextPet.clean >= NEED_MOOD_DECAY_THRESHOLD
+          ? now
+          : current.meta.lastLowCleanMoodDecayAt,
       ...(shouldQueueConsumableAnimation
         ? {
             feedAnimationQueue: [...queuedFeedAnimations, queuedAnimationId],
@@ -636,7 +647,7 @@ const applyPassiveDecayInStore = (current: PetStoreData, now = Date.now()) => {
     const hungerCrossedAt = getThresholdCrossedAt(
       hungerBefore,
       hungerAfter,
-      40,
+      NEED_MOOD_DECAY_THRESHOLD,
       HUNGER_DECAY_VALUE,
       HUNGER_DECAY_MS,
       baseMeta.lastHungerDecayAt ?? now,
@@ -650,14 +661,17 @@ const applyPassiveDecayInStore = (current: PetStoreData, now = Date.now()) => {
       ...nextMeta,
       lastHungerDecayAt: (baseMeta.lastHungerDecayAt ?? now) + hungerDecayCount * HUNGER_DECAY_MS,
       lastLowHungerMoodDecayAt:
-        hungerBefore >= 40 && hungerAfter < 40
+        hungerBefore >= NEED_MOOD_DECAY_THRESHOLD && hungerAfter < NEED_MOOD_DECAY_THRESHOLD
           ? hungerCrossedAt
-          : hungerAfter >= 40
+          : hungerAfter >= NEED_MOOD_DECAY_THRESHOLD
             ? now
             : nextMeta.lastLowHungerMoodDecayAt,
     }
     changed = true
-  } else if (nextPet.hunger >= 40 && nextMeta.lastLowHungerMoodDecayAt !== now) {
+  } else if (
+    nextPet.hunger >= NEED_MOOD_DECAY_THRESHOLD &&
+    nextMeta.lastLowHungerMoodDecayAt !== now
+  ) {
     nextMeta = {
       ...nextMeta,
       lastLowHungerMoodDecayAt: now,
@@ -671,7 +685,7 @@ const applyPassiveDecayInStore = (current: PetStoreData, now = Date.now()) => {
     const cleanCrossedAt = getThresholdCrossedAt(
       cleanBefore,
       cleanAfter,
-      40,
+      NEED_MOOD_DECAY_THRESHOLD,
       CLEAN_DECAY_VALUE,
       CLEAN_DECAY_MS,
       baseMeta.lastCleanDecayAt ?? now,
@@ -685,14 +699,17 @@ const applyPassiveDecayInStore = (current: PetStoreData, now = Date.now()) => {
       ...nextMeta,
       lastCleanDecayAt: (baseMeta.lastCleanDecayAt ?? now) + cleanDecayCount * CLEAN_DECAY_MS,
       lastLowCleanMoodDecayAt:
-        cleanBefore >= 40 && cleanAfter < 40
+        cleanBefore >= NEED_MOOD_DECAY_THRESHOLD && cleanAfter < NEED_MOOD_DECAY_THRESHOLD
           ? cleanCrossedAt
-          : cleanAfter >= 40
+          : cleanAfter >= NEED_MOOD_DECAY_THRESHOLD
             ? now
             : nextMeta.lastLowCleanMoodDecayAt,
     }
     changed = true
-  } else if (nextPet.clean >= 40 && nextMeta.lastLowCleanMoodDecayAt !== now) {
+  } else if (
+    nextPet.clean >= NEED_MOOD_DECAY_THRESHOLD &&
+    nextMeta.lastLowCleanMoodDecayAt !== now
+  ) {
     nextMeta = {
       ...nextMeta,
       lastLowCleanMoodDecayAt: now,
@@ -712,7 +729,7 @@ const applyPassiveDecayInStore = (current: PetStoreData, now = Date.now()) => {
     changed = true
   }
 
-  if (nextPet.hunger < 40) {
+  if (nextPet.hunger < NEED_MOOD_DECAY_THRESHOLD) {
     const lowHungerMoodDecayCount = getDecayIntervals(
       nextMeta.lastLowHungerMoodDecayAt ?? now,
       now,
@@ -734,7 +751,7 @@ const applyPassiveDecayInStore = (current: PetStoreData, now = Date.now()) => {
     }
   }
 
-  if (nextPet.clean < 40) {
+  if (nextPet.clean < NEED_MOOD_DECAY_THRESHOLD) {
     const lowCleanMoodDecayCount = getDecayIntervals(
       nextMeta.lastLowCleanMoodDecayAt ?? now,
       now,
@@ -877,24 +894,70 @@ const autoClaimPendingTaskRewards = (current: PetStoreData) =>
     current,
   )
 
-const finishSleepInStore = (current: PetStoreData, now = Date.now()) => {
-  if (!current.meta.sleepEndAt || current.meta.sleepEndAt > now) {
-    return current
+const settleSleepRecoveryInStore = (current: PetStoreData, now = Date.now()) => {
+  const sleepEndAt = current.meta.sleepEndAt ?? 0
+
+  if (!sleepEndAt) {
+    return {
+      nextStore: current,
+      didFinishSleep: false,
+      recoveredEnergy: 0,
+    }
+  }
+
+  const sleepClickCount = Math.max(1, normalizeSleepClickCount(current.meta.sleepClickCount))
+  const sleepStartedAt =
+    typeof current.meta.sleepStartedAt === 'number' && current.meta.sleepStartedAt > 0
+      ? current.meta.sleepStartedAt
+      : sleepEndAt - sleepClickCount * SLEEP_DURATION_MS
+  const totalRecoverableEnergy = sleepClickCount * SLEEP_ENERGY_RECOVERY_VALUE
+  const currentRecoveredEnergy = Math.min(
+    totalRecoverableEnergy,
+    normalizeSleepRecoveredEnergy(current.meta.sleepRecoveredEnergy),
+  )
+  const elapsedMs = Math.max(0, Math.min(now, sleepEndAt) - sleepStartedAt)
+  const elapsedRecoveredEnergy = Math.min(
+    totalRecoverableEnergy,
+    Math.floor(elapsedMs / SLEEP_ENERGY_RECOVERY_TICK_MS),
+  )
+  const nextRecoveredEnergy = Math.max(currentRecoveredEnergy, elapsedRecoveredEnergy)
+  const recoveredEnergy = nextRecoveredEnergy - currentRecoveredEnergy
+  const didFinishSleep = sleepEndAt <= now
+
+  if (
+    recoveredEnergy <= 0 &&
+    !didFinishSleep &&
+    current.meta.sleepStartedAt === sleepStartedAt &&
+    current.meta.sleepRecoveredEnergy === nextRecoveredEnergy
+  ) {
+    return {
+      nextStore: current,
+      didFinishSleep: false,
+      recoveredEnergy: 0,
+    }
   }
 
   return {
-    ...current,
-    pet: normalizePet({
-      ...current.pet,
-      energy: current.pet.energy + 10,
-    }),
-    meta: normalizeMeta({
-      ...current.meta,
-      sleepEndAt: 0,
-      sleepStartedAt: 0,
-      sleepClickCount: 0,
-      lastEnergyDecayAt: now,
-    }),
+    nextStore: {
+      ...current,
+      pet:
+        recoveredEnergy > 0
+          ? normalizePet({
+              ...current.pet,
+              energy: current.pet.energy + recoveredEnergy,
+            })
+          : current.pet,
+      meta: normalizeMeta({
+        ...current.meta,
+        sleepEndAt: didFinishSleep ? 0 : sleepEndAt,
+        sleepStartedAt: didFinishSleep ? 0 : sleepStartedAt,
+        sleepClickCount: didFinishSleep ? 0 : sleepClickCount,
+        sleepRecoveredEnergy: didFinishSleep ? 0 : nextRecoveredEnergy,
+        lastEnergyDecayAt: didFinishSleep ? now : current.meta.lastEnergyDecayAt,
+      }),
+    },
+    didFinishSleep,
+    recoveredEnergy,
   }
 }
 
@@ -1196,15 +1259,19 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
       return
     }
 
-    const tryFinishSleep = () => {
-      const nextStore = finishSleepInStore(storeRef.current)
+    const trySettleSleepRecovery = () => {
+      const { nextStore, didFinishSleep } = settleSleepRecoveryInStore(storeRef.current)
 
       if (nextStore === storeRef.current) {
         return false
       }
 
       commitStore(() => nextStore)
-      showToast('睡醒啦，体力恢复了 10 点！')
+
+      if (didFinishSleep) {
+        showToast('睡醒啦，体力已经按睡眠时间恢复好啦！')
+      }
+
       return true
     }
 
@@ -1212,19 +1279,21 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
       return
     }
 
-    const remainingMs = store.meta.sleepEndAt - Date.now()
-
-    if (remainingMs <= 0) {
-      tryFinishSleep()
-      return
+    trySettleSleepRecovery()
+    const intervalId = window.setInterval(trySettleSleepRecovery, 1000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        trySettleSleepRecovery()
+      }
     }
 
-    const timerId = window.setTimeout(() => {
-      tryFinishSleep()
-    }, remainingMs)
+    window.addEventListener('focus', trySettleSleepRecovery)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
-      window.clearTimeout(timerId)
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', trySettleSleepRecovery)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [hasHydratedRemoteStore, isSessionUnlocked, store.meta.sleepEndAt, showToast])
 
@@ -1232,14 +1301,13 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
     if (action === 'sleep') {
       const now = Date.now()
       let currentStore = storeRef.current
-      const currentSleepEndAt = currentStore.meta.sleepEndAt ?? 0
+      const settledSleep = settleSleepRecoveryInStore(currentStore, now)
 
-      if (currentSleepEndAt && currentSleepEndAt <= now) {
-        const finishedStore = finishSleepInStore(currentStore, now)
+      if (settledSleep.nextStore !== currentStore) {
+        currentStore = commitStore(() => settledSleep.nextStore)
 
-        if (finishedStore !== currentStore) {
-          currentStore = commitStore(() => finishedStore)
-          showToast('睡醒啦，体力恢复了 10 点！')
+        if (settledSleep.didFinishSleep) {
+          showToast('睡醒啦，体力已经按睡眠时间恢复好啦！')
         }
       }
 
@@ -1267,13 +1335,17 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
           sleepEndAt: nextSleepEndAt,
           sleepStartedAt: nextSleepStartedAt,
           sleepClickCount: nextSleepClickCount,
+          sleepRecoveredEnergy:
+            activeSleepEndAt > now
+              ? normalizeSleepRecoveredEnergy(current.meta.sleepRecoveredEnergy)
+              : 0,
         }),
       }))
 
       showToast(
         nextSleepClickCount === 1
-          ? '已经睡下啦，1 分钟后恢复 10 点体力！'
-          : `已加 1 分钟，这一觉 ${nextSleepClickCount}/10 次。`,
+          ? '已经睡下啦，体力会按时间慢慢恢复！'
+          : `已加 1 分钟，这一觉 ${nextSleepClickCount}/10 次，最多恢复 ${nextSleepClickCount * SLEEP_ENERGY_RECOVERY_VALUE} 点体力。`,
       )
       return
     }
@@ -1741,8 +1813,8 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
   const equippedShoesItem = store.shopItems.find((item) => item.id === store.pet.currentShoes)
   const moodMax = getMoodMax(store.pet)
   const lowStatusHints = [
-    store.pet.hunger < 40 ? '小猫有点饿啦，喂一喂会更开心。' : '',
-    store.pet.clean < 40 ? '小猫想洗香香，泡泡时间到啦。' : '',
+    store.pet.hunger < NEED_MOOD_DECAY_THRESHOLD ? '小猫有点饿啦，喂一喂会更开心。' : '',
+    store.pet.clean < NEED_MOOD_DECAY_THRESHOLD ? '小猫想洗香香，泡泡时间到啦。' : '',
     store.pet.energy < 40 ? '小猫有点累了，先轻轻陪它休息一下吧。' : '',
     store.pet.mood < 40 ? '小猫想被你陪一会儿，玩耍会让它开心起来。' : '',
   ].filter(Boolean)

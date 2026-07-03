@@ -65,6 +65,7 @@ export type AppMeta = {
   sleepEndAt?: number
   sleepStartedAt?: number
   sleepClickCount?: number
+  sleepRecoveredEnergy?: number
   lastHungerDecayAt?: number
   lastCleanDecayAt?: number
   lastEnergyDecayAt?: number
