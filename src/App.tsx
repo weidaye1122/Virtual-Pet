@@ -21,6 +21,7 @@ import { Tasks } from './pages/Tasks'
 import {
   isInteractionFeedbackKind,
   playInteractionFeedback,
+  vibrateInteractionFeedback,
 } from './utils/interactionFeedback'
 
 const AVATAR_OUTPUT_SIZE = 512
@@ -103,6 +104,86 @@ const getAvatarCropStyle = (crop: AvatarCropSelection, imageSize: AvatarImageSiz
   }
 }
 
+function useGlobalInteractionFeedback() {
+  const pointerFeedbackRef = useRef<{ at: number; element: HTMLElement } | null>(null)
+
+  useEffect(() => {
+    const getFeedbackTarget = (eventTarget: EventTarget | null) => {
+      const target = eventTarget instanceof Element ? eventTarget : null
+      const interactiveElement = target?.closest<HTMLElement>(
+        'button, a, [role="button"], [data-feedback-kind]',
+      )
+
+      if (!interactiveElement) {
+        return null
+      }
+
+      if (
+        interactiveElement.getAttribute('aria-disabled') === 'true' ||
+        (interactiveElement instanceof HTMLButtonElement && interactiveElement.disabled)
+      ) {
+        return null
+      }
+
+      const feedbackKind = interactiveElement.dataset.feedbackKind
+
+      if (feedbackKind === 'none') {
+        return null
+      }
+
+      return {
+        element: interactiveElement,
+        kind: isInteractionFeedbackKind(feedbackKind) ? feedbackKind : 'button',
+      }
+    }
+
+    const handleGlobalPointerDown = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return
+      }
+
+      const feedbackTarget = getFeedbackTarget(event.target)
+
+      if (!feedbackTarget) {
+        return
+      }
+
+      vibrateInteractionFeedback(feedbackTarget.kind)
+      pointerFeedbackRef.current = {
+        at: Date.now(),
+        element: feedbackTarget.element,
+      }
+    }
+
+    const handleGlobalClick = (event: MouseEvent) => {
+      const feedbackTarget = getFeedbackTarget(event.target)
+
+      if (!feedbackTarget) {
+        return
+      }
+
+      const pointerFeedback = pointerFeedbackRef.current
+      const alreadyVibrated =
+        pointerFeedback?.element === feedbackTarget.element &&
+        Date.now() - pointerFeedback.at < 1200
+
+      playInteractionFeedback(feedbackTarget.kind, { vibrate: !alreadyVibrated })
+
+      if (alreadyVibrated) {
+        pointerFeedbackRef.current = null
+      }
+    }
+
+    window.addEventListener('pointerdown', handleGlobalPointerDown, { capture: true })
+    window.addEventListener('click', handleGlobalClick, { capture: true })
+
+    return () => {
+      window.removeEventListener('pointerdown', handleGlobalPointerDown, { capture: true })
+      window.removeEventListener('click', handleGlobalClick, { capture: true })
+    }
+  }, [])
+}
+
 function AppLayout() {
   const {
     isSessionUnlocked,
@@ -126,42 +207,6 @@ function AppLayout() {
   useEffect(() => {
     document.title = `${titleName}成长记`
   }, [titleName])
-
-  useEffect(() => {
-    const handleGlobalClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null
-      const interactiveElement = target?.closest<HTMLElement>(
-        'button, a, [role="button"], [data-feedback-kind]',
-      )
-
-      if (!interactiveElement) {
-        return
-      }
-
-      if (
-        interactiveElement.getAttribute('aria-disabled') === 'true' ||
-        (interactiveElement instanceof HTMLButtonElement && interactiveElement.disabled)
-      ) {
-        return
-      }
-
-      const feedbackKind = interactiveElement.dataset.feedbackKind
-
-      if (feedbackKind === 'none') {
-        return
-      }
-
-      playInteractionFeedback(
-        isInteractionFeedbackKind(feedbackKind) ? feedbackKind : 'button',
-      )
-    }
-
-    window.addEventListener('click', handleGlobalClick, { capture: true })
-
-    return () => {
-      window.removeEventListener('click', handleGlobalClick, { capture: true })
-    }
-  }, [])
 
   if (!isStoreReady || !isSessionUnlocked) {
     return <AuthGate />
@@ -501,6 +546,8 @@ function AppLayout() {
 }
 
 export default function App() {
+  useGlobalInteractionFeedback()
+
   return (
     <ToastProvider>
       <PetProvider>

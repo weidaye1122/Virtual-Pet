@@ -74,7 +74,7 @@ const getAudioContext = () => {
   return audioContext
 }
 
-const vibrate = (kind: InteractionFeedbackKind) => {
+export const vibrateInteractionFeedback = (kind: InteractionFeedbackKind = 'button') => {
   if (typeof navigator === 'undefined') {
     return
   }
@@ -251,8 +251,17 @@ const playFeedbackSound = (kind: InteractionFeedbackKind, context: AudioContext)
   playTone(context, now, 520, 0.045, 0.03, 'triangle', 650)
 }
 
-export const playInteractionFeedback = (kind: InteractionFeedbackKind = 'button') => {
-  vibrate(kind)
+type PlayInteractionFeedbackOptions = {
+  vibrate?: boolean
+}
+
+export const playInteractionFeedback = (
+  kind: InteractionFeedbackKind = 'button',
+  options: PlayInteractionFeedbackOptions = {},
+) => {
+  if (options.vibrate ?? true) {
+    vibrateInteractionFeedback(kind)
+  }
 
   const context = getAudioContext()
 

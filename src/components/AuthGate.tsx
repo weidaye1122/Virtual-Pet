@@ -242,6 +242,7 @@ export const AuthGate = () => {
                   aria-label={isSetupMode ? '设置密码' : '输入密码'}
                   aria-pressed={activePasswordField === 'primary'}
                   className="password-display__control"
+                  data-feedback-kind="password"
                   onClick={() => {
                     setActivePasswordField('primary')
                     setErrorText('')
@@ -259,6 +260,7 @@ export const AuthGate = () => {
                     aria-label="再输一次密码"
                     aria-pressed={activePasswordField === 'confirm'}
                     className="password-display__control"
+                    data-feedback-kind="password"
                     onClick={() => {
                       setActivePasswordField('confirm')
                       setErrorText('')
