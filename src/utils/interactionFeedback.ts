@@ -36,14 +36,14 @@ const feedbackKinds = new Set<InteractionFeedbackKind>([
 ])
 
 const vibrationPatterns: Record<InteractionFeedbackKind, number | number[]> = {
-  button: 18,
-  careAction: [28, 38, 28],
-  cat: [28, 34, 28],
-  error: [44, 42, 44],
-  inventoryUse: [26, 32, 26],
-  longPress: [58, 52, 80],
-  password: 20,
-  success: [24, 32, 32],
+  button: 55,
+  careAction: [55, 42, 55],
+  cat: [48, 36, 48],
+  error: [80, 45, 80],
+  inventoryUse: [50, 38, 50],
+  longPress: [90, 55, 110],
+  password: 45,
+  success: [48, 34, 70],
 }
 
 const catMeowSoundPath = '/sounds/cat-meow.m4a'
@@ -76,17 +76,23 @@ const getAudioContext = () => {
 
 export const vibrateInteractionFeedback = (kind: InteractionFeedbackKind = 'button') => {
   if (typeof navigator === 'undefined') {
-    return
+    return false
   }
 
   const vibration = (navigator as VibrationNavigator).vibrate
 
-  if (typeof vibration === 'function') {
+  if (typeof vibration !== 'function') {
+    return false
+  }
+
+  try {
     const pattern = vibrationPatterns[kind]
     const vibrateWithPattern: (nextPattern: number | number[]) => boolean =
       vibration.bind(navigator)
 
-    vibrateWithPattern(pattern)
+    return vibrateWithPattern(pattern)
+  } catch {
+    return false
   }
 }
 
@@ -259,14 +265,16 @@ export const playInteractionFeedback = (
   kind: InteractionFeedbackKind = 'button',
   options: PlayInteractionFeedbackOptions = {},
 ) => {
+  let didVibrate = false
+
   if (options.vibrate ?? true) {
-    vibrateInteractionFeedback(kind)
+    didVibrate = vibrateInteractionFeedback(kind)
   }
 
   const context = getAudioContext()
 
   if (!context) {
-    return
+    return didVibrate
   }
 
   const play = () => {
@@ -283,8 +291,9 @@ export const playInteractionFeedback = (
 
   if (context.state === 'suspended') {
     void context.resume().then(play).catch(() => undefined)
-    return
+    return didVibrate
   }
 
   play()
+  return didVibrate
 }

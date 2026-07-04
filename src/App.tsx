@@ -137,21 +137,47 @@ function useGlobalInteractionFeedback() {
       }
     }
 
-    const handleGlobalPointerDown = (event: PointerEvent) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) {
-        return
-      }
-
-      const feedbackTarget = getFeedbackTarget(event.target)
+    const handlePressFeedback = (eventTarget: EventTarget | null) => {
+      const feedbackTarget = getFeedbackTarget(eventTarget)
 
       if (!feedbackTarget) {
         return
       }
 
-      vibrateInteractionFeedback(feedbackTarget.kind)
+      const now = Date.now()
+      const pointerFeedback = pointerFeedbackRef.current
+
+      if (
+        pointerFeedback?.element === feedbackTarget.element &&
+        now - pointerFeedback.at < 350
+      ) {
+        return
+      }
+
+      if (vibrateInteractionFeedback(feedbackTarget.kind)) {
+        pointerFeedbackRef.current = {
+          at: now,
+          element: feedbackTarget.element,
+        }
+      }
+    }
+
+    const handleGlobalPointerDown = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return
+      }
+
+      handlePressFeedback(event.target)
+    }
+
+    const handleGlobalTouchStart = (event: TouchEvent) => {
+      handlePressFeedback(event.target)
+    }
+
+    const markClickVibrated = (element: HTMLElement) => {
       pointerFeedbackRef.current = {
         at: Date.now(),
-        element: feedbackTarget.element,
+        element,
       }
     }
 
@@ -167,18 +193,22 @@ function useGlobalInteractionFeedback() {
         pointerFeedback?.element === feedbackTarget.element &&
         Date.now() - pointerFeedback.at < 1200
 
-      playInteractionFeedback(feedbackTarget.kind, { vibrate: !alreadyVibrated })
+      const didVibrate = playInteractionFeedback(feedbackTarget.kind, { vibrate: !alreadyVibrated })
 
       if (alreadyVibrated) {
         pointerFeedbackRef.current = null
+      } else if (didVibrate) {
+        markClickVibrated(feedbackTarget.element)
       }
     }
 
     window.addEventListener('pointerdown', handleGlobalPointerDown, { capture: true })
+    window.addEventListener('touchstart', handleGlobalTouchStart, { capture: true, passive: true })
     window.addEventListener('click', handleGlobalClick, { capture: true })
 
     return () => {
       window.removeEventListener('pointerdown', handleGlobalPointerDown, { capture: true })
+      window.removeEventListener('touchstart', handleGlobalTouchStart, { capture: true })
       window.removeEventListener('click', handleGlobalClick, { capture: true })
     }
   }, [])

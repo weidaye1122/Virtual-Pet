@@ -95,9 +95,9 @@ docker compose -f compose.yaml up -d --build
 
 项目已经准备好镜像发布流程。代码推到 `main` 后，GitHub Actions 会同步构建并推送：
 
-- `ghcr.io/weidaye1122/electronic-pet-cat:0.0.3`
+- `ghcr.io/weidaye1122/electronic-pet-cat:0.0.4`
 - `ghcr.io/weidaye1122/electronic-pet-cat:latest`
-- `weidaye1122/electronic-pet-cat:0.0.3`
+- `weidaye1122/electronic-pet-cat:0.0.4`
 - `weidaye1122/electronic-pet-cat:latest`
 
 首次启用前，只需要在 GitHub 仓库的 `Settings > Secrets and variables > Actions` 里补一个仓库密钥：
