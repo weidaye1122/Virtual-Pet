@@ -1,10 +1,148 @@
+import { useEffect, useRef, useState } from 'react'
+import type { MouseEvent, PointerEvent } from 'react'
 import { GrowthMap } from '../components/GrowthMap'
+import { PointIcon } from '../components/PointIcon'
 import { levelRules } from '../data/levelRules'
 import { usePetStore } from '../hooks/usePetStore'
+import type { PetStatChanges, PointRecord } from '../types'
+import { playInteractionFeedback } from '../utils/interactionFeedback'
 import { growthStages } from '../utils/level'
 
+const statChangeLabels: Array<{ key: keyof PetStatChanges; label: string }> = [
+  { key: 'hunger', label: '饱腹' },
+  { key: 'mood', label: '心情' },
+  { key: 'clean', label: '清洁' },
+  { key: 'energy', label: '体力' },
+]
+
+const formatChange = (value: number) => (value > 0 ? `+${value}` : String(value))
+
+const getChangeTone = (value: number) =>
+  value >= 0 ? 'history-item__meta-pill--gain' : 'history-item__meta-pill--loss'
+
+const RecordBadges = ({ record }: { record: PointRecord }) => {
+  const statBadges = statChangeLabels
+    .map(({ key, label }) => ({
+      key,
+      label,
+      value: record.statChanges?.[key] ?? 0,
+    }))
+    .filter((item) => item.value !== 0)
+
+  if (record.change === 0 && !record.growthChange && statBadges.length === 0) {
+    return (
+      <span className="history-item__meta-pill history-item__meta-pill--neutral">
+        {record.detail ?? '已记录'}
+      </span>
+    )
+  }
+
+  return (
+    <>
+      {record.change !== 0 ? (
+        <span className={`history-item__meta-pill ${getChangeTone(record.change)}`}>
+          <PointIcon size="sm" /> {formatChange(record.change)}
+        </span>
+      ) : null}
+      {record.growthChange ? (
+        <span className={`history-item__meta-pill ${getChangeTone(record.growthChange)}`}>
+          ⭐ {formatChange(record.growthChange)}
+        </span>
+      ) : null}
+      {statBadges.map((badge) => (
+        <span className={`history-item__meta-pill ${getChangeTone(badge.value)}`} key={badge.key}>
+          {badge.label} {formatChange(badge.value)}
+        </span>
+      ))}
+    </>
+  )
+}
+
 export const Growth = () => {
-  const { pet, meta, taskStats, growthProgress, nextLevelRule, pointRecords } = usePetStore()
+  const {
+    pet,
+    meta,
+    taskStats,
+    growthProgress,
+    nextLevelRule,
+    pointRecords,
+    undoPointRecord,
+  } = usePetStore()
+  const [managedRecordId, setManagedRecordId] = useState('')
+  const longPressTimerRef = useRef<number | null>(null)
+  const longPressStartRef = useRef<{ x: number; y: number } | null>(null)
+  const didLongPressRef = useRef(false)
+  const managedRecord = pointRecords.find((record) => record.id === managedRecordId)
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  useEffect(
+    () => () => {
+      if (longPressTimerRef.current) {
+        window.clearTimeout(longPressTimerRef.current)
+      }
+    },
+    [],
+  )
+
+  const handleRecordPointerDown = (
+    record: PointRecord,
+    event: PointerEvent<HTMLElement>,
+  ) => {
+    if (!record.undo || event.button !== 0) {
+      return
+    }
+
+    const target = event.target as HTMLElement
+
+    if (target.closest('button, a')) {
+      return
+    }
+
+    clearLongPressTimer()
+    didLongPressRef.current = false
+    longPressStartRef.current = { x: event.clientX, y: event.clientY }
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null
+      didLongPressRef.current = true
+      playInteractionFeedback('longPress')
+      setManagedRecordId(record.id)
+    }, 1_200)
+  }
+
+  const handleRecordPointerMove = (event: PointerEvent<HTMLElement>) => {
+    if (!longPressStartRef.current) {
+      return
+    }
+
+    const deltaX = Math.abs(event.clientX - longPressStartRef.current.x)
+    const deltaY = Math.abs(event.clientY - longPressStartRef.current.y)
+
+    if (deltaX > 10 || deltaY > 10) {
+      clearLongPressTimer()
+      longPressStartRef.current = null
+    }
+  }
+
+  const handleRecordPointerEnd = () => {
+    clearLongPressTimer()
+    longPressStartRef.current = null
+  }
+
+  const handleRecordClickCapture = (event: MouseEvent<HTMLElement>) => {
+    if (!didLongPressRef.current) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    didLongPressRef.current = false
+  }
 
   return (
     <div className="page-stack page-stack--growth">
@@ -61,19 +199,80 @@ export const Growth = () => {
         ) : (
           <div className="history-list history-list--grid">
             {pointRecords.map((record) => (
-              <article className="history-item" key={record.id}>
+              <article
+                className={`history-item ${record.undo ? 'history-item--manageable' : ''}`}
+                key={record.id}
+                onClickCapture={handleRecordClickCapture}
+                onContextMenu={(event) => {
+                  if (record.undo) {
+                    event.preventDefault()
+                  }
+                }}
+                onPointerCancel={handleRecordPointerEnd}
+                onPointerDown={(event) => handleRecordPointerDown(record, event)}
+                onPointerLeave={handleRecordPointerEnd}
+                onPointerMove={handleRecordPointerMove}
+                onPointerUp={handleRecordPointerEnd}
+              >
                 <div>
                   <strong>{record.title}</strong>
                   <small>{new Date(record.createdAt).toLocaleString('zh-CN')}</small>
                 </div>
-                <span className={record.change >= 0 ? 'history-item__gain' : 'history-item__loss'}>
-                  {record.change >= 0 ? `+${record.change}` : record.change}
-                </span>
+                <div className="history-item__meta">
+                  <RecordBadges record={record} />
+                </div>
               </article>
             ))}
           </div>
         )}
       </section>
+
+      {managedRecord ? (
+        <div
+          className="task-manage-modal"
+          onClick={() => setManagedRecordId('')}
+          role="presentation"
+        >
+          <section
+            aria-label={`撤销记录 ${managedRecord.title}`}
+            aria-modal="true"
+            className="task-manage-sheet history-undo-sheet"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="task-manage-sheet__summary">
+              <span className="emoji-badge" aria-hidden="true">
+                ↩
+              </span>
+              <div>
+                <small>撤销记录</small>
+                <strong>{managedRecord.title}</strong>
+              </div>
+            </div>
+
+            <div className="task-manage-sheet__actions history-undo-sheet__actions">
+              <button
+                className="ghost-button ghost-button--danger"
+                onClick={() => {
+                  undoPointRecord(managedRecord.id)
+                  setManagedRecordId('')
+                }}
+                type="button"
+              >
+                撤销这次操作
+              </button>
+            </div>
+
+            <button
+              className="ghost-button task-manage-sheet__cancel"
+              onClick={() => setManagedRecordId('')}
+              type="button"
+            >
+              取消
+            </button>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }

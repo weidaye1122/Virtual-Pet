@@ -702,8 +702,36 @@ a {
   min-height: 84px;
 }
 
+.history-item--manageable {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.history-item__meta {
+  display: flex;
+  align-self: flex-end;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.history-item__meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .history-list--grid .history-item__gain,
-.history-list--grid .history-item__loss {
+.history-list--grid .history-item__loss,
+.history-list--grid .history-item__meta {
   align-self: flex-end;
 }
 
@@ -724,6 +752,18 @@ a {
 .history-item__loss {
   color: #d26756;
   font-weight: 700;
+}
+
+.history-item__meta-pill--gain {
+  color: #2f8a57;
+}
+
+.history-item__meta-pill--loss {
+  color: #d26756;
+}
+
+.history-item__meta-pill--neutral {
+  color: var(--color-muted);
 }
 
 .pet-card {
@@ -1619,6 +1659,10 @@ a {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 16px;
+}
+
+.history-undo-sheet__actions {
+  grid-template-columns: 1fr;
 }
 
 .task-manage-sheet__actions .ghost-button,

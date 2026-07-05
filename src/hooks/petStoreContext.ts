@@ -52,6 +52,7 @@ export type PetStoreContextValue = {
   updateCustomTask: (taskId: string, task: NewTaskInput) => void
   deleteCustomTask: (taskId: string) => void
   resetCustomTaskStatus: (taskId: string) => void
+  undoPointRecord: (recordId: string) => void
   purchaseItem: (itemId: string) => void
   applyInventoryItem: (itemId: string) => void
   consumeNextFeedAnimation: () => void

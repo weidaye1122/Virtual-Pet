@@ -16,6 +16,7 @@ import type {
   NewTaskInput,
   Pet,
   PetPosition,
+  PetStatChanges,
   PersistedAppState,
   PlayCycleAnimationId,
   PointRecord,
@@ -209,18 +210,44 @@ const getNextPlayCycleItem = (current: PetStoreData) => {
   return current.shopItems.find((item) => item.id === availableToyIds[0])
 }
 
-const createPointRecord = (title: string, change: number): PointRecord => ({
+const createOperationId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
+const createPointRecord = (
+  title: string,
+  change: number,
+  options: Omit<Partial<PointRecord>, 'id' | 'title' | 'change' | 'createdAt'> = {},
+): PointRecord => ({
   id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
   title,
   change,
   createdAt: new Date().toISOString(),
+  ...options,
 })
 
+const getPetStatChanges = (before: Pet, after: Pet): PetStatChanges => {
+  const changes: PetStatChanges = {}
+  const statKeys: Array<keyof PetStatChanges> = ['hunger', 'mood', 'clean', 'energy']
+
+  statKeys.forEach((key) => {
+    const change = (after[key] ?? 0) - (before[key] ?? 0)
+
+    if (change !== 0) {
+      changes[key] = change
+    }
+  })
+
+  return changes
+}
+
+const hasPetStatChanges = (changes: PetStatChanges | undefined) =>
+  Boolean(changes && Object.values(changes).some((change) => change !== 0))
+
 const normalizePet = (pet: Pet): Pet => {
-  const level = calculateLevelFromGrowth(pet.growthValue, levelRules)
+  const growthValue = Math.max(0, Math.round(pet.growthValue))
+  const level = calculateLevelFromGrowth(growthValue, levelRules)
   const normalizedPet = {
     ...pet,
     level,
+    growthValue,
     stage: getStageForLevel(level).name,
     points: Math.max(0, Math.round(pet.points)),
     hunger: clampStat(pet.hunger),
@@ -590,6 +617,8 @@ const applyConsumableEffectInStore = (
     clean: current.pet.clean + (effect.clean ?? 0),
     energy: current.pet.energy + (effect.energy ?? 0),
   })
+  const statChanges = getPetStatChanges(current.pet, nextPet)
+  const operationId = createOperationId()
   const queuedFeedAnimations = sanitizeFeedAnimationQueue(current.meta.feedAnimationQueue)
   const queuedAnimationId = isQueuedConsumableAnimationId(item.id) ? item.id : undefined
   const shouldQueueConsumableAnimation =
@@ -631,6 +660,25 @@ const applyConsumableEffectInStore = (
           }
         : {}),
     }),
+    pointRecords: [
+      createPointRecord(`使用 ${item.name}`, 0, {
+        detail: hasPetStatChanges(statChanges) ? undefined : '状态已经接近满满的啦',
+        operationId,
+        statChanges,
+        undo:
+          item.type === 'food' || item.type === 'toy' || item.type === 'care'
+            ? {
+                type: 'consume-item',
+                operationId,
+                itemId: item.id,
+                itemName: item.name,
+                itemType: item.type,
+                statDeltas: statChanges,
+              }
+            : undefined,
+      }),
+      ...current.pointRecords,
+    ].slice(0, 24),
   }
 }
 
@@ -825,35 +873,72 @@ const applyGrowthRewards = (pet: Pet, growthDelta: number) => {
   if (gainedLevels <= 0) {
     return {
       pet: leveledPet,
-      records: [] as PointRecord[],
+      bonusPoints: 0,
+      bonusMood: 0,
+      gainedLevels: 0,
     }
   }
 
   const bonusPoints = gainedLevels * 20
+  const bonusMood = gainedLevels * 10
 
   return {
     pet: normalizePet({
       ...leveledPet,
       points: leveledPet.points + bonusPoints,
-      mood: leveledPet.mood + gainedLevels * 10,
+      mood: leveledPet.mood + bonusMood,
     }),
-    records: [createPointRecord(`升级奖励 Lv.${leveledPet.level}`, bonusPoints)],
+    bonusPoints,
+    bonusMood,
+    gainedLevels,
   }
 }
 
-const claimTaskRewardInStore = (current: PetStoreData, taskId: string) => {
+const claimTaskRewardInStore = (
+  current: PetStoreData,
+  taskId: string,
+  previousTaskStatus: Task['status'] = 'done',
+) => {
   const activeTask = current.tasks.find((item) => item.id === taskId)
 
   if (!activeTask || activeTask.status !== 'done') {
     return current
   }
 
+  const operationId = createOperationId()
   const rewardedPet = normalizePet({
     ...current.pet,
     points: current.pet.points + activeTask.points,
     mood: current.pet.mood + 5,
   })
   const growthResult = applyGrowthRewards(rewardedPet, activeTask.growth)
+  const undo = {
+    type: 'task-reward' as const,
+    operationId,
+    taskId,
+    taskSnapshot: {
+      ...activeTask,
+      status: previousTaskStatus,
+    },
+    pointsDelta: activeTask.points + growthResult.bonusPoints,
+    growthDelta: activeTask.growth,
+    moodDelta: 5 + growthResult.bonusMood,
+  }
+  const rewardRecords = [
+    createPointRecord(`${activeTask.title} 领取奖励`, activeTask.points, {
+      growthChange: activeTask.growth,
+      operationId,
+      undo,
+    }),
+    ...(growthResult.bonusPoints > 0
+      ? [
+          createPointRecord(`升级奖励 Lv.${growthResult.pet.level}`, growthResult.bonusPoints, {
+            operationId,
+            undo,
+          }),
+        ]
+      : []),
+  ]
 
   return {
     ...current,
@@ -862,8 +947,7 @@ const claimTaskRewardInStore = (current: PetStoreData, taskId: string) => {
       item.id === taskId ? { ...item, status: 'claimed' as const } : item,
     ),
     pointRecords: [
-      createPointRecord(`${activeTask.title} 领取奖励`, activeTask.points),
-      ...growthResult.records,
+      ...rewardRecords,
       ...current.pointRecords,
     ].slice(0, 24),
   }
@@ -884,6 +968,7 @@ const completeTaskAndClaimRewardInStore = (current: PetStoreData, taskId: string
       ),
     },
     taskId,
+    'todo',
   )
 }
 
@@ -893,6 +978,55 @@ const autoClaimPendingTaskRewards = (current: PetStoreData) =>
       task.status === 'done' ? claimTaskRewardInStore(nextStore, task.id) : nextStore,
     current,
   )
+
+const addSleepRecoveredEnergyToRecords = (
+  records: PointRecord[],
+  sleepStartedAt: number,
+  recoveredEnergy: number,
+) => {
+  if (recoveredEnergy <= 0) {
+    return records
+  }
+
+  let remainingEnergy = recoveredEnergy
+
+  return records
+    .slice()
+    .reverse()
+    .map((record) => {
+      if (
+        remainingEnergy <= 0 ||
+        record.undo?.type !== 'sleep' ||
+        record.undo.sleepStartedAt !== sleepStartedAt
+      ) {
+        return record
+      }
+
+      const currentRecoveredEnergy = normalizeSleepRecoveredEnergy(record.undo.recoveredEnergy)
+      const capacity = Math.max(0, record.undo.recoverableEnergy - currentRecoveredEnergy)
+      const appliedEnergy = Math.min(capacity, remainingEnergy)
+
+      if (appliedEnergy <= 0) {
+        return record
+      }
+
+      remainingEnergy -= appliedEnergy
+
+      return {
+        ...record,
+        statChanges: {
+          ...record.statChanges,
+          energy: (record.statChanges?.energy ?? 0) + appliedEnergy,
+        },
+        detail: undefined,
+        undo: {
+          ...record.undo,
+          recoveredEnergy: currentRecoveredEnergy + appliedEnergy,
+        },
+      }
+    })
+    .reverse()
+}
 
 const settleSleepRecoveryInStore = (current: PetStoreData, now = Date.now()) => {
   const sleepEndAt = current.meta.sleepEndAt ?? 0
@@ -937,16 +1071,24 @@ const settleSleepRecoveryInStore = (current: PetStoreData, now = Date.now()) => 
     }
   }
 
+  const nextPet =
+    recoveredEnergy > 0
+      ? normalizePet({
+          ...current.pet,
+          energy: current.pet.energy + recoveredEnergy,
+        })
+      : current.pet
+  const actualRecoveredEnergy = nextPet.energy - current.pet.energy
+
   return {
     nextStore: {
       ...current,
-      pet:
-        recoveredEnergy > 0
-          ? normalizePet({
-              ...current.pet,
-              energy: current.pet.energy + recoveredEnergy,
-            })
-          : current.pet,
+      pet: nextPet,
+      pointRecords: addSleepRecoveredEnergyToRecords(
+        current.pointRecords,
+        sleepStartedAt,
+        actualRecoveredEnergy,
+      ),
       meta: normalizeMeta({
         ...current.meta,
         sleepEndAt: didFinishSleep ? 0 : sleepEndAt,
@@ -957,7 +1099,249 @@ const settleSleepRecoveryInStore = (current: PetStoreData, now = Date.now()) => 
       }),
     },
     didFinishSleep,
-    recoveredEnergy,
+    recoveredEnergy: actualRecoveredEnergy,
+  }
+}
+
+type UndoPointRecordResult = {
+  nextStore: PetStoreData
+  didUndo: boolean
+  message: string
+}
+
+const getPointRecordOperationId = (record: PointRecord) =>
+  record.operationId ?? record.undo?.operationId ?? record.id
+
+const removePointRecordOperation = (records: PointRecord[], record: PointRecord) => {
+  const operationId = getPointRecordOperationId(record)
+
+  return records.filter((item) => getPointRecordOperationId(item) !== operationId)
+}
+
+const applyInverseStatDeltas = (pet: Pet, statDeltas: PetStatChanges = {}) =>
+  normalizePet({
+    ...pet,
+    hunger: pet.hunger - (statDeltas.hunger ?? 0),
+    mood: pet.mood - (statDeltas.mood ?? 0),
+    clean: pet.clean - (statDeltas.clean ?? 0),
+    energy: pet.energy - (statDeltas.energy ?? 0),
+  })
+
+const undoPointRecordInStore = (
+  current: PetStoreData,
+  recordId: string,
+  now = Date.now(),
+): UndoPointRecordResult => {
+  let workingStore = current
+  let record = workingStore.pointRecords.find((item) => item.id === recordId)
+
+  if (!record) {
+    return {
+      nextStore: current,
+      didUndo: false,
+      message: '这条记录已经不在啦。',
+    }
+  }
+
+  if (!record.undo) {
+    return {
+      nextStore: current,
+      didUndo: false,
+      message: '这条旧记录没有可撤销的信息哦。',
+    }
+  }
+
+  if (record.undo.type === 'sleep') {
+    const settledSleep = settleSleepRecoveryInStore(workingStore, now)
+    workingStore = settledSleep.nextStore
+    record = workingStore.pointRecords.find((item) => item.id === recordId)
+
+    if (!record?.undo || record.undo.type !== 'sleep') {
+      return {
+        nextStore: workingStore,
+        didUndo: false,
+        message: '这条睡觉记录已经变化啦。',
+      }
+    }
+  }
+
+  const { undo } = record
+
+  if (undo.type === 'task-reward') {
+    const hasTask = workingStore.tasks.some((task) => task.id === undo.taskId)
+    const nextTasks = hasTask
+      ? workingStore.tasks.map((task) =>
+          task.id === undo.taskId ? { ...task, status: undo.taskSnapshot.status } : task,
+        )
+      : [undo.taskSnapshot, ...workingStore.tasks]
+
+    return {
+      nextStore: {
+        ...workingStore,
+        pet: normalizePet({
+          ...workingStore.pet,
+          points: workingStore.pet.points - undo.pointsDelta,
+          growthValue: workingStore.pet.growthValue - undo.growthDelta,
+          mood: workingStore.pet.mood - undo.moodDelta,
+        }),
+        tasks: nextTasks,
+        pointRecords: removePointRecordOperation(workingStore.pointRecords, record),
+      },
+      didUndo: true,
+      message: '奖励已经撤销啦，积分和成长值已扣回。',
+    }
+  }
+
+  if (undo.type === 'purchase-item') {
+    const item = workingStore.shopItems.find((shopItem) => shopItem.id === undo.itemId)
+
+    if (!item) {
+      return {
+        nextStore: workingStore,
+        didUndo: false,
+        message: '这个礼物已经不在商店里啦，不能撤销。',
+      }
+    }
+
+    const isConsumable =
+      undo.itemType === 'food' || undo.itemType === 'toy' || undo.itemType === 'care'
+    const nextConsumables = { ...workingStore.inventory.consumables }
+    let nextOwnedItemIds = [...workingStore.inventory.ownedItemIds]
+
+    if (isConsumable) {
+      const currentQuantity = nextConsumables[undo.itemId] ?? 0
+
+      if (currentQuantity <= 0) {
+        return {
+          nextStore: workingStore,
+          didUndo: false,
+          message: '这个礼物已经用掉啦，先撤销对应的使用记录吧。',
+        }
+      }
+
+      const nextQuantity = currentQuantity - 1
+
+      if (nextQuantity > 0) {
+        nextConsumables[undo.itemId] = nextQuantity
+      } else {
+        delete nextConsumables[undo.itemId]
+      }
+
+      if (undo.addedOwnedItem && nextQuantity <= 0) {
+        nextOwnedItemIds = nextOwnedItemIds.filter((itemId) => itemId !== undo.itemId)
+      }
+    } else if (undo.addedOwnedItem) {
+      nextOwnedItemIds = nextOwnedItemIds.filter((itemId) => itemId !== undo.itemId)
+    }
+
+    const stillOwned = nextOwnedItemIds.includes(undo.itemId)
+    const nextShopItems = workingStore.shopItems.map((shopItem) =>
+      shopItem.id === undo.itemId ? { ...shopItem, owned: stillOwned } : shopItem,
+    )
+
+    return {
+      nextStore: {
+        ...workingStore,
+        pet: normalizePet({
+          ...workingStore.pet,
+          points: workingStore.pet.points - undo.pointsDelta,
+          currentHat:
+            !stillOwned && workingStore.pet.currentHat === undo.itemId
+              ? ''
+              : workingStore.pet.currentHat,
+          currentScarf:
+            !stillOwned && workingStore.pet.currentScarf === undo.itemId
+              ? ''
+              : workingStore.pet.currentScarf,
+          currentShoes:
+            !stillOwned && workingStore.pet.currentShoes === undo.itemId
+              ? ''
+              : workingStore.pet.currentShoes,
+          currentBackground:
+            !stillOwned && workingStore.pet.currentBackground === undo.itemId
+              ? 'default'
+              : workingStore.pet.currentBackground,
+        }),
+        inventory: {
+          consumables: nextConsumables,
+          ownedItemIds: nextOwnedItemIds,
+        },
+        shopItems: nextShopItems,
+        pointRecords: removePointRecordOperation(workingStore.pointRecords, record),
+      },
+      didUndo: true,
+      message: '兑换已经撤销啦，积分已退回。',
+    }
+  }
+
+  if (undo.type === 'consume-item') {
+    const item = workingStore.shopItems.find((shopItem) => shopItem.id === undo.itemId)
+
+    if (!item || !isConsumableItemType(item.type)) {
+      return {
+        nextStore: workingStore,
+        didUndo: false,
+        message: '这个使用记录找不到对应道具啦。',
+      }
+    }
+
+    return {
+      nextStore: {
+        ...workingStore,
+        pet: applyInverseStatDeltas(workingStore.pet, undo.statDeltas),
+        inventory: {
+          consumables: {
+            ...workingStore.inventory.consumables,
+            [undo.itemId]: (workingStore.inventory.consumables[undo.itemId] ?? 0) + 1,
+          },
+          ownedItemIds: workingStore.inventory.ownedItemIds.includes(undo.itemId)
+            ? workingStore.inventory.ownedItemIds
+            : [...workingStore.inventory.ownedItemIds, undo.itemId],
+        },
+        pointRecords: removePointRecordOperation(workingStore.pointRecords, record),
+      },
+      didUndo: true,
+      message: `${undo.itemName} 的使用已经撤销啦。`,
+    }
+  }
+
+  const recoveredEnergy = normalizeSleepRecoveredEnergy(undo.recoveredEnergy)
+  const isSameActiveSleep =
+    Boolean(workingStore.meta.sleepEndAt) && workingStore.meta.sleepStartedAt === undo.sleepStartedAt
+  const currentSleepClickCount = normalizeSleepClickCount(workingStore.meta.sleepClickCount)
+  const nextSleepClickCount = Math.max(0, currentSleepClickCount - 1)
+  const nextSleepEndAt = (workingStore.meta.sleepEndAt ?? 0) - SLEEP_DURATION_MS
+  const shouldClearSleep =
+    !isSameActiveSleep || nextSleepClickCount <= 0 || nextSleepEndAt <= now
+  const nextSleepRecoveredEnergy = Math.min(
+    normalizeSleepRecoveredEnergy(workingStore.meta.sleepRecoveredEnergy),
+    nextSleepClickCount * SLEEP_ENERGY_RECOVERY_VALUE,
+  )
+
+  return {
+    nextStore: {
+      ...workingStore,
+      pet: normalizePet({
+        ...workingStore.pet,
+        energy: workingStore.pet.energy - recoveredEnergy,
+      }),
+      meta: isSameActiveSleep
+        ? normalizeMeta({
+            ...workingStore.meta,
+            sleepEndAt: shouldClearSleep ? 0 : nextSleepEndAt,
+            sleepStartedAt: shouldClearSleep ? 0 : workingStore.meta.sleepStartedAt,
+            sleepClickCount: shouldClearSleep ? 0 : nextSleepClickCount,
+            sleepRecoveredEnergy: shouldClearSleep ? 0 : nextSleepRecoveredEnergy,
+            lastEnergyDecayAt: shouldClearSleep ? now : workingStore.meta.lastEnergyDecayAt,
+          })
+        : workingStore.meta,
+      pointRecords: removePointRecordOperation(workingStore.pointRecords, record),
+    },
+    didUndo: true,
+    message:
+      recoveredEnergy > 0
+        ? '睡觉记录已经撤销啦，恢复过的体力也扣回了。'
+        : '睡觉记录已经撤销啦。',
   }
 }
 
@@ -1327,6 +1711,7 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
         (activeSleepEndAt > now ? activeSleepEndAt : now) + SLEEP_DURATION_MS
       const nextSleepStartedAt =
         activeSleepEndAt > now ? currentStore.meta.sleepStartedAt || now : now
+      const operationId = createOperationId()
 
       commitStore((current) => ({
         ...current,
@@ -1340,6 +1725,20 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
               ? normalizeSleepRecoveredEnergy(current.meta.sleepRecoveredEnergy)
               : 0,
         }),
+        pointRecords: [
+          createPointRecord(nextSleepClickCount === 1 ? '睡觉 1 分钟' : '睡觉加时 1 分钟', 0, {
+            detail: '体力慢慢恢复',
+            operationId,
+            undo: {
+              type: 'sleep',
+              operationId,
+              sleepStartedAt: nextSleepStartedAt,
+              recoverableEnergy: SLEEP_ENERGY_RECOVERY_VALUE,
+              recoveredEnergy: 0,
+            },
+          }),
+          ...current.pointRecords,
+        ].slice(0, 24),
       }))
 
       showToast(
@@ -1550,6 +1949,21 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
     showToast(`任务“${task.title}”可以重新做啦！`)
   }
 
+  const undoPointRecord = (recordId: string) => {
+    let result: UndoPointRecordResult = {
+      nextStore: storeRef.current,
+      didUndo: false,
+      message: '这条记录暂时不能撤销哦。',
+    }
+
+    commitStore((current) => {
+      result = undoPointRecordInStore(current, recordId)
+      return result.nextStore
+    })
+
+    showToast(result.message)
+  }
+
   const purchaseItem = (itemId: string) => {
     const item = storeRef.current.shopItems.find((shopItem) => shopItem.id === itemId)
 
@@ -1571,17 +1985,19 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
     }
 
     commitStore((current) => {
+      const operationId = createOperationId()
       const nextInventory = {
         ...current.inventory,
         consumables: { ...current.inventory.consumables },
         ownedItemIds: [...current.inventory.ownedItemIds],
       }
+      const addedOwnedItem = !nextInventory.ownedItemIds.includes(item.id)
 
       if (isConsumableItemType(item.type)) {
         nextInventory.consumables[item.id] = (nextInventory.consumables[item.id] ?? 0) + 1
       }
 
-      if (!nextInventory.ownedItemIds.includes(item.id)) {
+      if (addedOwnedItem) {
         nextInventory.ownedItemIds.push(item.id)
       }
 
@@ -1596,7 +2012,18 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
                 shopItem.id === item.id ? { ...shopItem, owned: true } : shopItem,
               ),
         pointRecords: [
-          createPointRecord(`兑换 ${item.name}`, -item.price),
+          createPointRecord(`兑换 ${item.name}`, -item.price, {
+            operationId,
+            undo: {
+              type: 'purchase-item',
+              operationId,
+              itemId: item.id,
+              itemName: item.name,
+              itemType: item.type,
+              pointsDelta: -item.price,
+              addedOwnedItem,
+            },
+          }),
           ...current.pointRecords,
         ].slice(0, 24),
       }
@@ -1859,6 +2286,7 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
         updateCustomTask,
         deleteCustomTask,
         resetCustomTaskStatus,
+        undoPointRecord,
         purchaseItem,
         applyInventoryItem,
         consumeNextFeedAnimation,

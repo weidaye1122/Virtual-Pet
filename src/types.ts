@@ -111,10 +111,57 @@ export type InventoryState = {
   ownedItemIds: string[]
 }
 
+export type PetStatChanges = {
+  hunger?: number
+  mood?: number
+  clean?: number
+  energy?: number
+}
+
+export type PointRecordUndo =
+  | {
+      type: 'task-reward'
+      operationId: string
+      taskId: string
+      taskSnapshot: Task
+      pointsDelta: number
+      growthDelta: number
+      moodDelta: number
+    }
+  | {
+      type: 'purchase-item'
+      operationId: string
+      itemId: string
+      itemName: string
+      itemType: ItemType
+      pointsDelta: number
+      addedOwnedItem: boolean
+    }
+  | {
+      type: 'consume-item'
+      operationId: string
+      itemId: string
+      itemName: string
+      itemType: Extract<ItemType, 'food' | 'toy' | 'care'>
+      statDeltas: PetStatChanges
+    }
+  | {
+      type: 'sleep'
+      operationId: string
+      sleepStartedAt: number
+      recoverableEnergy: number
+      recoveredEnergy: number
+    }
+
 export type PointRecord = {
   id: string
   title: string
   change: number
+  growthChange?: number
+  statChanges?: PetStatChanges
+  detail?: string
+  operationId?: string
+  undo?: PointRecordUndo
   createdAt: string
 }
 
