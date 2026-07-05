@@ -81,6 +81,12 @@ export const Growth = () => {
     }
   }
 
+  const openRecordMenu = (recordId: string) => {
+    didLongPressRef.current = true
+    playInteractionFeedback('longPress')
+    setManagedRecordId(recordId)
+  }
+
   useEffect(
     () => () => {
       if (longPressTimerRef.current) {
@@ -94,7 +100,7 @@ export const Growth = () => {
     record: PointRecord,
     event: PointerEvent<HTMLElement>,
   ) => {
-    if (!record.undo || event.button !== 0) {
+    if (!record.undo || (event.pointerType === 'mouse' && event.button !== 0)) {
       return
     }
 
@@ -107,11 +113,14 @@ export const Growth = () => {
     clearLongPressTimer()
     didLongPressRef.current = false
     longPressStartRef.current = { x: event.clientX, y: event.clientY }
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // Some touch browsers do not allow capture for long-press gestures.
+    }
     longPressTimerRef.current = window.setTimeout(() => {
       longPressTimerRef.current = null
-      didLongPressRef.current = true
-      playInteractionFeedback('longPress')
-      setManagedRecordId(record.id)
+      openRecordMenu(record.id)
     }, 1_200)
   }
 
@@ -129,9 +138,23 @@ export const Growth = () => {
     }
   }
 
-  const handleRecordPointerEnd = () => {
+  const handleRecordPointerEnd = (event: PointerEvent<HTMLElement>) => {
     clearLongPressTimer()
     longPressStartRef.current = null
+
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
+    } catch {
+      // Ignore browsers that drop capture after cancelling a touch gesture.
+    }
+  }
+
+  const handleRecordPointerLeave = (event: PointerEvent<HTMLElement>) => {
+    if (event.pointerType === 'mouse') {
+      handleRecordPointerEnd(event)
+    }
   }
 
   const handleRecordClickCapture = (event: MouseEvent<HTMLElement>) => {
@@ -206,11 +229,13 @@ export const Growth = () => {
                 onContextMenu={(event) => {
                   if (record.undo) {
                     event.preventDefault()
+                    clearLongPressTimer()
+                    openRecordMenu(record.id)
                   }
                 }}
                 onPointerCancel={handleRecordPointerEnd}
                 onPointerDown={(event) => handleRecordPointerDown(record, event)}
-                onPointerLeave={handleRecordPointerEnd}
+                onPointerLeave={handleRecordPointerLeave}
                 onPointerMove={handleRecordPointerMove}
                 onPointerUp={handleRecordPointerEnd}
               >

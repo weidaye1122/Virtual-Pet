@@ -62,6 +62,16 @@ export const TaskCard = ({
     }
   }
 
+  const openManageMenu = () => {
+    if (!onManage) {
+      return
+    }
+
+    didLongPressRef.current = true
+    playInteractionFeedback('longPress')
+    onManage()
+  }
+
   useEffect(
     () => () => {
       if (longPressTimerRef.current) {
@@ -72,7 +82,7 @@ export const TaskCard = ({
   )
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
-    if (!onManage || event.button !== 0) {
+    if (!onManage || (event.pointerType === 'mouse' && event.button !== 0)) {
       return
     }
 
@@ -85,11 +95,14 @@ export const TaskCard = ({
     clearLongPressTimer()
     didLongPressRef.current = false
     longPressStartRef.current = { x: event.clientX, y: event.clientY }
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // Some touch browsers do not allow capture for long-press gestures.
+    }
     longPressTimerRef.current = window.setTimeout(() => {
       longPressTimerRef.current = null
-      didLongPressRef.current = true
-      playInteractionFeedback('longPress')
-      onManage()
+      openManageMenu()
     }, 2_000)
   }
 
@@ -107,9 +120,23 @@ export const TaskCard = ({
     }
   }
 
-  const handlePointerEnd = () => {
+  const handlePointerEnd = (event: PointerEvent<HTMLElement>) => {
     clearLongPressTimer()
     longPressStartRef.current = null
+
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
+    } catch {
+      // Ignore browsers that drop capture after cancelling a touch gesture.
+    }
+  }
+
+  const handlePointerLeave = (event: PointerEvent<HTMLElement>) => {
+    if (event.pointerType === 'mouse') {
+      handlePointerEnd(event)
+    }
   }
 
   const handleClickCapture = (event: MouseEvent<HTMLElement>) => {
@@ -129,11 +156,13 @@ export const TaskCard = ({
       onContextMenu={(event) => {
         if (canManage) {
           event.preventDefault()
+          clearLongPressTimer()
+          openManageMenu()
         }
       }}
       onPointerCancel={handlePointerEnd}
       onPointerDown={handlePointerDown}
-      onPointerLeave={handlePointerEnd}
+      onPointerLeave={handlePointerLeave}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
     >

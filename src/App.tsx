@@ -21,7 +21,6 @@ import { Tasks } from './pages/Tasks'
 import {
   isInteractionFeedbackKind,
   playInteractionFeedback,
-  vibrateInteractionFeedback,
 } from './utils/interactionFeedback'
 
 const AVATAR_OUTPUT_SIZE = 512
@@ -105,8 +104,6 @@ const getAvatarCropStyle = (crop: AvatarCropSelection, imageSize: AvatarImageSiz
 }
 
 function useGlobalInteractionFeedback() {
-  const pointerFeedbackRef = useRef<{ at: number; element: HTMLElement } | null>(null)
-
   useEffect(() => {
     const getFeedbackTarget = (eventTarget: EventTarget | null) => {
       const target = eventTarget instanceof Element ? eventTarget : null
@@ -137,50 +134,6 @@ function useGlobalInteractionFeedback() {
       }
     }
 
-    const handlePressFeedback = (eventTarget: EventTarget | null) => {
-      const feedbackTarget = getFeedbackTarget(eventTarget)
-
-      if (!feedbackTarget) {
-        return
-      }
-
-      const now = Date.now()
-      const pointerFeedback = pointerFeedbackRef.current
-
-      if (
-        pointerFeedback?.element === feedbackTarget.element &&
-        now - pointerFeedback.at < 350
-      ) {
-        return
-      }
-
-      if (vibrateInteractionFeedback(feedbackTarget.kind)) {
-        pointerFeedbackRef.current = {
-          at: now,
-          element: feedbackTarget.element,
-        }
-      }
-    }
-
-    const handleGlobalPointerDown = (event: PointerEvent) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) {
-        return
-      }
-
-      handlePressFeedback(event.target)
-    }
-
-    const handleGlobalTouchStart = (event: TouchEvent) => {
-      handlePressFeedback(event.target)
-    }
-
-    const markClickVibrated = (element: HTMLElement) => {
-      pointerFeedbackRef.current = {
-        at: Date.now(),
-        element,
-      }
-    }
-
     const handleGlobalClick = (event: MouseEvent) => {
       const feedbackTarget = getFeedbackTarget(event.target)
 
@@ -188,27 +141,12 @@ function useGlobalInteractionFeedback() {
         return
       }
 
-      const pointerFeedback = pointerFeedbackRef.current
-      const alreadyVibrated =
-        pointerFeedback?.element === feedbackTarget.element &&
-        Date.now() - pointerFeedback.at < 1200
-
-      const didVibrate = playInteractionFeedback(feedbackTarget.kind, { vibrate: !alreadyVibrated })
-
-      if (alreadyVibrated) {
-        pointerFeedbackRef.current = null
-      } else if (didVibrate) {
-        markClickVibrated(feedbackTarget.element)
-      }
+      playInteractionFeedback(feedbackTarget.kind)
     }
 
-    window.addEventListener('pointerdown', handleGlobalPointerDown, { capture: true })
-    window.addEventListener('touchstart', handleGlobalTouchStart, { capture: true, passive: true })
     window.addEventListener('click', handleGlobalClick, { capture: true })
 
     return () => {
-      window.removeEventListener('pointerdown', handleGlobalPointerDown, { capture: true })
-      window.removeEventListener('touchstart', handleGlobalTouchStart, { capture: true })
       window.removeEventListener('click', handleGlobalClick, { capture: true })
     }
   }, [])
@@ -541,7 +479,9 @@ function AppLayout() {
 
           <div className="app-header__intro">
             <div className="app-header__topline">
-              <p className="eyebrow">儿童互动电子宠物 v0.0.5</p>
+              <p className="eyebrow">
+                儿童互动电子宠物 v<span className="app-version-number">0.0.6</span>
+              </p>
               <p className="app-header__meta app-header__meta--mobile">
                 连续 {meta.streakCount} 天 · 完成 {taskStats.done}/{taskStats.total}
               </p>

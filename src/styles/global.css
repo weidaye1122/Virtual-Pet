@@ -98,6 +98,11 @@ a {
   letter-spacing: 0.06em;
 }
 
+.app-version-number {
+  display: inline-block;
+  font-size: 0.8em;
+}
+
 .header-copy {
   max-width: none;
   margin: 0;
@@ -703,8 +708,10 @@ a {
 }
 
 .history-item--manageable {
+  touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .history-item__meta {
@@ -1596,8 +1603,10 @@ a {
 }
 
 .task-card--manageable {
+  touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .task-manage-modal {

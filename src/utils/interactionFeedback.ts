@@ -13,10 +13,6 @@ type AudioWindow = Window &
     webkitAudioContext?: typeof AudioContext
   }
 
-type VibrationNavigator = Navigator & {
-  vibrate?: (pattern: number | number[]) => boolean
-}
-
 type CatMeowSegment = {
   duration: number
   offset: number
@@ -34,17 +30,6 @@ const feedbackKinds = new Set<InteractionFeedbackKind>([
   'password',
   'success',
 ])
-
-const vibrationPatterns: Record<InteractionFeedbackKind, number | number[]> = {
-  button: 55,
-  careAction: [55, 42, 55],
-  cat: [48, 36, 48],
-  error: [80, 45, 80],
-  inventoryUse: [50, 38, 50],
-  longPress: [90, 55, 110],
-  password: 45,
-  success: [48, 34, 70],
-}
 
 const catMeowSoundPath = '/sounds/cat-meow.m4a'
 const catMeowSegments: CatMeowSegment[] = [
@@ -72,28 +57,6 @@ const getAudioContext = () => {
 
   audioContext ??= new AudioContextConstructor()
   return audioContext
-}
-
-export const vibrateInteractionFeedback = (kind: InteractionFeedbackKind = 'button') => {
-  if (typeof navigator === 'undefined') {
-    return false
-  }
-
-  const vibration = (navigator as VibrationNavigator).vibrate
-
-  if (typeof vibration !== 'function') {
-    return false
-  }
-
-  try {
-    const pattern = vibrationPatterns[kind]
-    const vibrateWithPattern: (nextPattern: number | number[]) => boolean =
-      vibration.bind(navigator)
-
-    return vibrateWithPattern(pattern)
-  } catch {
-    return false
-  }
 }
 
 const playTone = (
@@ -257,24 +220,11 @@ const playFeedbackSound = (kind: InteractionFeedbackKind, context: AudioContext)
   playTone(context, now, 520, 0.045, 0.03, 'triangle', 650)
 }
 
-type PlayInteractionFeedbackOptions = {
-  vibrate?: boolean
-}
-
-export const playInteractionFeedback = (
-  kind: InteractionFeedbackKind = 'button',
-  options: PlayInteractionFeedbackOptions = {},
-) => {
-  let didVibrate = false
-
-  if (options.vibrate ?? true) {
-    didVibrate = vibrateInteractionFeedback(kind)
-  }
-
+export const playInteractionFeedback = (kind: InteractionFeedbackKind = 'button') => {
   const context = getAudioContext()
 
   if (!context) {
-    return didVibrate
+    return
   }
 
   const play = () => {
@@ -291,9 +241,8 @@ export const playInteractionFeedback = (
 
   if (context.state === 'suspended') {
     void context.resume().then(play).catch(() => undefined)
-    return didVibrate
+    return
   }
 
   play()
-  return didVibrate
 }
