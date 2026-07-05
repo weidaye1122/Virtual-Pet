@@ -541,7 +541,7 @@ function AppLayout() {
 
           <div className="app-header__intro">
             <div className="app-header__topline">
-              <p className="eyebrow">儿童互动电子宠物</p>
+              <p className="eyebrow">儿童互动电子宠物 v0.0.5</p>
               <p className="app-header__meta app-header__meta--mobile">
                 连续 {meta.streakCount} 天 · 完成 {taskStats.done}/{taskStats.total}
               </p>
