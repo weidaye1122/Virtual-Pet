@@ -40,7 +40,7 @@ const emptyMotionSteps: MotionStep[] = []
 const minimumPetPosition: PetPosition = { x: 0.04, y: 0.32 }
 const maximumPetPosition: PetPosition = { x: 0.96, y: 0.96 }
 const petNearDepthScale = 1.18
-const petDepthScaleRange = 0.56 * 1.15
+const petDepthScaleRange = 0.56 * 1.15 * 1.15
 const petFarDepthScale = petNearDepthScale - petDepthScaleRange
 
 const clampPositionValue = (value: number, min: number, max: number) =>
