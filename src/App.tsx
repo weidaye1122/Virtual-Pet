@@ -23,6 +23,8 @@ import {
   playInteractionFeedback,
 } from './utils/interactionFeedback'
 
+declare const __APP_VERSION__: string
+
 const AVATAR_OUTPUT_SIZE = 512
 const AVATAR_INITIAL_CROP_RATIO = 0.82
 const AVATAR_MIN_CROP_RATIO = 0.35
@@ -480,7 +482,7 @@ function AppLayout() {
           <div className="app-header__intro">
             <div className="app-header__topline">
               <p className="eyebrow">
-                儿童互动电子宠物 v<span className="app-version-number">0.0.6</span>
+                儿童互动电子宠物 v<span className="app-version-number">{__APP_VERSION__}</span>
               </p>
               <p className="app-header__meta app-header__meta--mobile">
                 连续 {meta.streakCount} 天 · 完成 {taskStats.done}/{taskStats.total}

@@ -39,6 +39,9 @@ const frameSorter = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity
 const emptyMotionSteps: MotionStep[] = []
 const minimumPetPosition: PetPosition = { x: 0.04, y: 0.32 }
 const maximumPetPosition: PetPosition = { x: 0.96, y: 0.96 }
+const petNearDepthScale = 1.18
+const petDepthScaleRange = 0.56 * 1.15
+const petFarDepthScale = petNearDepthScale - petDepthScaleRange
 
 const clampPositionValue = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value))
@@ -54,7 +57,7 @@ const getPetDepthScale = (positionY: number) => {
       minimumPetPosition.y) /
     (maximumPetPosition.y - minimumPetPosition.y)
 
-  return 0.62 + depth * 0.56
+  return petFarDepthScale + depth * petDepthScaleRange
 }
 
 const sortFrameLoaders = (frames: Record<string, FrameLoader>) =>
