@@ -12,6 +12,7 @@ const maskPassword = (value: string) => (value ? '•'.repeat(value.length) : ''
 export const AuthGate = () => {
   const {
     completeFirstRunSetup,
+    hasPassword,
     isSessionUnlocked,
     isStoreReady,
     meta,
@@ -25,7 +26,6 @@ export const AuthGate = () => {
   const [activePasswordField, setActivePasswordField] = useState<PasswordField>('primary')
   const [errorText, setErrorText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const hasPassword = Boolean(meta.passwordHash && meta.passwordSalt)
   const isSetupMode = isStoreReady && !hasPassword
 
   useEffect(() => {
@@ -83,32 +83,35 @@ export const AuthGate = () => {
     setIsSubmitting(true)
     const passwordSalt = createPasswordSalt()
     const passwordHash = await hashNumericPassword(password, passwordSalt)
-    completeFirstRunSetup({
-      passwordHash,
-      passwordSalt,
-      petName: nextPetName,
-      userName: nextUserName,
-    })
-    setIsSubmitting(false)
+    try {
+      await completeFirstRunSetup({
+        passwordHash,
+        passwordSalt,
+        petName: nextPetName,
+        userName: nextUserName,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }, [completeFirstRunSetup, confirmPassword, password, petName, userName])
 
   const handleLogin = useCallback(async () => {
-    if (!meta.passwordHash || !meta.passwordSalt) {
+    if (!hasPassword) {
       return
     }
 
     setIsSubmitting(true)
-    const passwordHash = await hashNumericPassword(password, meta.passwordSalt)
-    setIsSubmitting(false)
+    try {
+      const isUnlocked = await unlockSession(password)
 
-    if (passwordHash !== meta.passwordHash) {
-      setErrorText('密码不对，再试一次。')
-      setPassword('')
-      return
+      if (!isUnlocked) {
+        setErrorText('密码不对，再试一次。')
+        setPassword('')
+      }
+    } finally {
+      setIsSubmitting(false)
     }
-
-    unlockSession()
-  }, [meta.passwordHash, meta.passwordSalt, password, unlockSession])
+  }, [hasPassword, password, unlockSession])
 
   const handleSubmit = useCallback(() => {
     void (isSetupMode ? handleSetup() : handleLogin())

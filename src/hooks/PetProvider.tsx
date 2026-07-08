@@ -36,11 +36,14 @@ import {
   clearLocalAppState,
   loadLocalAppState,
   loadRemoteAppState,
+  loadRemoteSessionStatus,
   loadSessionUnlock,
   saveLocalAppState,
   saveRemoteAppState,
   saveSessionUnlock,
+  unlockRemoteSession,
 } from '../utils/storage'
+import { hashNumericPassword } from '../utils/auth'
 import { PetStoreContext } from './petStoreContext'
 import type { FirstRunSetupInput, LevelUpCelebrationState } from './petStoreContext'
 import { useToast } from './useToast'
@@ -140,7 +143,7 @@ const getConsumableEnergyCost = (item: ShopItem) =>
   item.type === 'toy' ? Math.max(0, -(item.effect?.energy ?? 0)) : 0
 const canUseConsumableItem = (pet: Pet, item: ShopItem) => pet.energy >= getConsumableEnergyCost(item)
 const shouldRestoreSessionUnlock = (meta: AppMeta) =>
-  Boolean(meta.passwordHash && loadSessionUnlock() === meta.passwordHash)
+  Boolean(meta.passwordHash && meta.passwordSalt && loadSessionUnlock() === '1')
 const isCustomTask = (taskId: string) => taskId.startsWith('custom-')
 const getProfileAvatarUpdatedAt = (meta: AppMeta) =>
   typeof meta.profileAvatarUpdatedAt === 'number' ? meta.profileAvatarUpdatedAt : meta.profileAvatar ? 1 : 0
@@ -1409,6 +1412,7 @@ const applyDailyRefresh = (current: PetStoreData) => {
 export const PetProvider = ({ children }: { children: ReactNode }) => {
   const [store, setStore] = useState<PetStoreData>(createInitialStore)
   const [hasHydratedRemoteStore, setHasHydratedRemoteStore] = useState(false)
+  const [hasRemotePassword, setHasRemotePassword] = useState(false)
   const [isSessionUnlocked, setIsSessionUnlocked] = useState(false)
   const [levelUpCelebration, setLevelUpCelebration] = useState<LevelUpCelebrationState | null>(
     null,
@@ -1462,8 +1466,48 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
 
     const hydrateRemoteStore = async () => {
       try {
+        const sessionStatus = await loadRemoteSessionStatus()
+
+        if (isCancelled) {
+          return
+        }
+
+        setHasRemotePassword(sessionStatus.hasPassword)
+
         if (shouldOverwriteRemoteOnHydrateRef.current) {
-          await saveRemoteAppState(toPersistedAppState(storeRef.current))
+          if (sessionStatus.authenticated || !sessionStatus.hasPassword) {
+            await saveRemoteAppState(toPersistedAppState(storeRef.current))
+            setHasRemotePassword(Boolean(storeRef.current.meta.passwordHash && storeRef.current.meta.passwordSalt))
+          }
+          return
+        }
+
+        if (sessionStatus.authenticated) {
+          const remoteState = await loadRemoteAppState()
+
+          if (isCancelled) {
+            return
+          }
+
+          if (remoteState) {
+            const nextStore = autoClaimPendingTaskRewards(normalizePersistedState(remoteState))
+            const nextHasPassword = Boolean(nextStore.meta.passwordHash && nextStore.meta.passwordSalt)
+            storeRef.current = nextStore
+            setStore(nextStore)
+            setHasRemotePassword(nextHasPassword)
+
+            if (nextHasPassword) {
+              saveSessionUnlock(nextStore.meta.passwordHash || 'remote')
+              setIsSessionUnlocked(true)
+            } else {
+              setIsSessionUnlocked(false)
+            }
+          }
+          return
+        }
+
+        if (sessionStatus.hasPassword) {
+          setIsSessionUnlocked(false)
           return
         }
 
@@ -1477,16 +1521,20 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
           const nextStore = autoClaimPendingTaskRewards(normalizePersistedState(remoteState))
           storeRef.current = nextStore
           setStore(nextStore)
+          setHasRemotePassword(Boolean(nextStore.meta.passwordHash && nextStore.meta.passwordSalt))
+          setIsSessionUnlocked(shouldRestoreSessionUnlock(nextStore.meta))
         } else {
-          await saveRemoteAppState(toPersistedAppState(storeRef.current))
+          setHasRemotePassword(Boolean(storeRef.current.meta.passwordHash && storeRef.current.meta.passwordSalt))
+          setIsSessionUnlocked(shouldRestoreSessionUnlock(storeRef.current.meta))
         }
       } catch {
         // Fallback to the browser cache when the backend is not available yet.
+        setHasRemotePassword(Boolean(storeRef.current.meta.passwordHash && storeRef.current.meta.passwordSalt))
+        setIsSessionUnlocked(shouldRestoreSessionUnlock(storeRef.current.meta))
       } finally {
         if (!isCancelled) {
           shouldOverwriteRemoteOnNextHydration = false
           shouldOverwriteRemoteOnHydrateRef.current = false
-          setIsSessionUnlocked(shouldRestoreSessionUnlock(storeRef.current.meta))
           setHasHydratedRemoteStore(true)
         }
       }
@@ -1500,7 +1548,7 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
   }, [])
 
   useEffect(() => {
-    if (!hasHydratedRemoteStore) {
+    if (!hasHydratedRemoteStore || !isSessionUnlocked) {
       return
     }
 
@@ -1526,7 +1574,7 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
         remoteSaveTimerRef.current = null
       }
     }
-  }, [hasHydratedRemoteStore, store])
+  }, [hasHydratedRemoteStore, isSessionUnlocked, store])
 
   useEffect(() => {
     if (!hasHydratedRemoteStore || !isSessionUnlocked) {
@@ -2157,6 +2205,7 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
     const next = buildDefaultStore()
     storeRef.current = next
     setStore(next)
+    setHasRemotePassword(false)
     setIsSessionUnlocked(false)
     if (hasHydratedRemoteStore) {
       void saveRemoteAppState(toPersistedAppState(next)).catch(() => {
@@ -2166,13 +2215,13 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
     showToast('已经回到和小猫第一次见面的那一天啦！')
   }
 
-  const completeFirstRunSetup = ({
+  const completeFirstRunSetup = async ({
     passwordHash,
     passwordSalt,
     petName,
     userName,
   }: FirstRunSetupInput) => {
-    commitStore((current) => ({
+    const nextStore = commitStore((current) => ({
       ...current,
       pet: normalizePet({
         ...current.pet,
@@ -2186,14 +2235,51 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
         userName,
       }),
     }))
+
+    try {
+      await saveRemoteAppState(toPersistedAppState(nextStore))
+      setHasRemotePassword(true)
+    } catch {
+      // Local-first setup stays usable even if the backend is temporarily offline.
+    }
+
     saveSessionUnlock(passwordHash)
     setIsSessionUnlocked(true)
     showToast('小家已经准备好啦！')
   }
 
-  const unlockSession = () => {
-    saveSessionUnlock(storeRef.current.meta.passwordHash ?? '')
-    setIsSessionUnlocked(true)
+  const unlockSession = async (password: string) => {
+    try {
+      const isRemoteUnlocked = await unlockRemoteSession(password)
+
+      if (isRemoteUnlocked) {
+        const remoteState = await loadRemoteAppState()
+
+        if (remoteState) {
+          const nextStore = autoClaimPendingTaskRewards(normalizePersistedState(remoteState))
+          storeRef.current = nextStore
+          setStore(nextStore)
+          setHasRemotePassword(Boolean(nextStore.meta.passwordHash && nextStore.meta.passwordSalt))
+          saveSessionUnlock(nextStore.meta.passwordHash || 'remote')
+          setIsSessionUnlocked(true)
+          return true
+        }
+      }
+    } catch {
+      // The local password check below keeps offline fallback behavior available.
+    }
+
+    if (storeRef.current.meta.passwordHash && storeRef.current.meta.passwordSalt) {
+      const passwordHash = await hashNumericPassword(password, storeRef.current.meta.passwordSalt)
+
+      if (passwordHash === storeRef.current.meta.passwordHash) {
+        saveSessionUnlock(passwordHash)
+        setIsSessionUnlocked(true)
+        return true
+      }
+    }
+
+    return false
   }
 
   const setPetPosition = (position: PetPosition) => {
@@ -2219,6 +2305,7 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
     showToast('头像已经换好啦！')
   }
 
+  const hasPassword = Boolean(store.meta.passwordHash && store.meta.passwordSalt) || hasRemotePassword
   const growthProgress = getGrowthProgress(store.pet.growthValue, store.pet.level, levelRules)
   const nextLevelRule = getNextLevelRule(store.pet.level, levelRules)
   const inventoryItems = store.shopItems.filter((item) => {
@@ -2277,6 +2364,7 @@ export const PetProvider = ({ children }: { children: ReactNode }) => {
         todayTip,
         taskStats,
         levelUpCelebration,
+        hasPassword,
         isStoreReady: hasHydratedRemoteStore,
         isSessionUnlocked,
         performCareAction,

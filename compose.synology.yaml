@@ -22,8 +22,11 @@ services:
       PET_DATA_FILE: /data/pet-state.json
       # 前端静态文件目录
       STATIC_DIR: /app/dist
+      # 如果前面有 HTTPS 反向代理，可以改成 "true"
+      SESSION_COOKIE_SECURE: "false"
     volumes:
       # 左边是群晖本地目录，右边是容器目录
       # 存档最终会落到 /volume1/docker/electronic-pet-cat/pet-state.json
+      # 镜像内服务使用非 root 用户运行，请确保这个目录允许 UID 1000 写入
       # 如果你想换目录，只改左边这一段就行
       - /volume1/docker/electronic-pet-cat:/data

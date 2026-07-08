@@ -19,6 +19,29 @@ export const storageKeys = {
 } as const
 
 const persistenceApiPath = import.meta.env.VITE_PERSISTENCE_API_PATH || '/api/state'
+const sessionApiPath = import.meta.env.VITE_SESSION_API_PATH || '/api/session'
+const requestedWithHeaderValue = 'fetch'
+let csrfToken = ''
+
+export type RemoteSessionStatus = {
+  authenticated: boolean
+  csrfToken?: string
+  hasPassword: boolean
+  setupRequired: boolean
+}
+
+export class RemoteAuthRequiredError extends Error {
+  constructor() {
+    super('remote_auth_required')
+    this.name = 'RemoteAuthRequiredError'
+  }
+}
+
+const updateCsrfToken = (value: unknown) => {
+  if (typeof value === 'string') {
+    csrfToken = value
+  }
+}
 
 const loadSlice = <T,>(key: string, fallback: T): T => {
   if (typeof window === 'undefined') {
@@ -83,7 +106,7 @@ export const saveSessionUnlock = (passwordHash: string) => {
     return
   }
 
-  window.sessionStorage.setItem(storageKeys.sessionUnlock, passwordHash)
+  window.sessionStorage.setItem(storageKeys.sessionUnlock, '1')
 }
 
 export const clearSessionUnlock = () => {
@@ -96,6 +119,7 @@ export const clearSessionUnlock = () => {
 
 export const loadRemoteAppState = async () => {
   const response = await fetch(persistenceApiPath, {
+    credentials: 'same-origin',
     headers: {
       Accept: 'application/json',
     },
@@ -103,6 +127,10 @@ export const loadRemoteAppState = async () => {
 
   if (response.status === 404) {
     return null
+  }
+
+  if (response.status === 401) {
+    throw new RemoteAuthRequiredError()
   }
 
   if (!response.ok) {
@@ -115,13 +143,66 @@ export const loadRemoteAppState = async () => {
 export const saveRemoteAppState = async (state: PersistedAppState) => {
   const response = await fetch(persistenceApiPath, {
     body: JSON.stringify(state),
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+      'X-Requested-With': requestedWithHeaderValue,
     },
     method: 'PUT',
   })
 
+  if (response.status === 401) {
+    throw new RemoteAuthRequiredError()
+  }
+
   if (!response.ok) {
     throw new Error(`保存后端存档失败: ${response.status}`)
   }
+
+  const payload = await response.json().catch(() => null)
+  updateCsrfToken(payload?.csrfToken)
+}
+
+export const loadRemoteSessionStatus = async () => {
+  const response = await fetch(sessionApiPath, {
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`读取登录状态失败: ${response.status}`)
+  }
+
+  const payload = (await response.json()) as RemoteSessionStatus
+  updateCsrfToken(payload.csrfToken)
+
+  return payload
+}
+
+export const unlockRemoteSession = async (password: string) => {
+  const response = await fetch(sessionApiPath, {
+    body: JSON.stringify({ password }),
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': requestedWithHeaderValue,
+    },
+    method: 'POST',
+  })
+
+  if (response.status === 401) {
+    return false
+  }
+
+  if (!response.ok) {
+    throw new Error(`登录后端存档失败: ${response.status}`)
+  }
+
+  const payload = await response.json()
+  updateCsrfToken(payload?.csrfToken)
+
+  return Boolean(payload?.authenticated)
 }

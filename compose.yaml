@@ -8,6 +8,8 @@ services:
       PORT: 4173
       PET_DATA_FILE: /data/pet-state.json
       STATIC_DIR: /app/dist
+      # Set true when serving through an HTTPS reverse proxy.
+      SESSION_COOKIE_SECURE: "false"
     volumes:
       - ./docker-data:/data
     restart: unless-stopped

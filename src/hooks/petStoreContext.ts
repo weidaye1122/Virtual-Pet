@@ -43,6 +43,7 @@ export type PetStoreContextValue = {
   todayTip: string
   taskStats: TaskStats
   levelUpCelebration: LevelUpCelebrationState | null
+  hasPassword: boolean
   isStoreReady: boolean
   isSessionUnlocked: boolean
   performCareAction: (action: 'feed' | 'wash' | 'play' | 'sleep') => void
@@ -56,8 +57,8 @@ export type PetStoreContextValue = {
   purchaseItem: (itemId: string) => void
   applyInventoryItem: (itemId: string) => void
   consumeNextFeedAnimation: () => void
-  completeFirstRunSetup: (input: FirstRunSetupInput) => void
-  unlockSession: () => void
+  completeFirstRunSetup: (input: FirstRunSetupInput) => Promise<void>
+  unlockSession: (password: string) => Promise<boolean>
   setPetPosition: (position: PetPosition) => void
   setProfileAvatar: (avatarDataUrl: string) => void
   resetAllData: () => void
