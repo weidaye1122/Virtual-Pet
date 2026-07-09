@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react'
 
-declare const __APP_BUILD_ID__: string
-declare const __APP_VERSION__: string
-
 type AppVersionManifest = {
   buildId?: string
   version?: string

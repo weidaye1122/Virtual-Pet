@@ -23,8 +23,6 @@ import {
   playInteractionFeedback,
 } from './utils/interactionFeedback'
 
-declare const __APP_VERSION__: string
-
 const AVATAR_OUTPUT_SIZE = 512
 const AVATAR_INITIAL_CROP_RATIO = 0.82
 const AVATAR_MIN_CROP_RATIO = 0.35

@@ -189,6 +189,7 @@ export const AuthGate = () => {
       <section className="auth-panel">
         <div className="auth-hero" aria-hidden="true">
           <img alt="" className="auth-hero__image" src="/favicon.svg" />
+          <p className="auth-hero__version">V{__APP_VERSION__}</p>
         </div>
 
         <div className="auth-copy">
