@@ -1,4 +1,5 @@
-FROM node:22-alpine AS build
+# Build dependencies on the native builder arch to avoid running pnpm under QEMU.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -8,7 +9,7 @@ RUN corepack enable && pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-FROM node:22-alpine
+FROM --platform=$TARGETPLATFORM node:22-alpine
 
 WORKDIR /app
 
