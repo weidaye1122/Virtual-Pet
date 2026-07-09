@@ -852,6 +852,45 @@ a {
     linear-gradient(180deg, #f7fbff 0%, #eadfff 100%);
 }
 
+.pet-card--snow-fireplace-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/snow-fireplace-room.png'),
+    linear-gradient(180deg, #26324e 0%, #6c4d3a 100%);
+  color: #fffaf2;
+}
+
+.pet-card--pumpkin-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/pumpkin-room.png'),
+    linear-gradient(180deg, #fff1ca 0%, #f1a65a 100%);
+}
+
+.pet-card--ice-cream-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/ice-cream-room.png'),
+    linear-gradient(180deg, #fff8ee 0%, #ffd9e7 100%);
+}
+
+.pet-card--beach-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/beach-room.png'),
+    linear-gradient(180deg, #d8f8ff 0%, #ffe6b7 100%);
+}
+
+.pet-card--library-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/library-room.png'),
+    linear-gradient(180deg, #22192b 0%, #5a3f2d 100%);
+  color: #fffaf2;
+}
+
+.pet-card--neon-arcade-room {
+  background:
+    center / cover no-repeat url('../assets/rooms/neon-arcade-room.png'),
+    linear-gradient(180deg, #0e1238 0%, #342069 100%);
+  color: #fffaf2;
+}
+
 .pet-card__bubble {
   position: relative;
   z-index: 1;
@@ -995,7 +1034,13 @@ a {
 .pet-card--dessert-room .pet-avatar__ground,
 .pet-card--undersea-room .pet-avatar__ground,
 .pet-card--mushroom-room .pet-avatar__ground,
-.pet-card--cloud-room .pet-avatar__ground {
+.pet-card--cloud-room .pet-avatar__ground,
+.pet-card--snow-fireplace-room .pet-avatar__ground,
+.pet-card--pumpkin-room .pet-avatar__ground,
+.pet-card--ice-cream-room .pet-avatar__ground,
+.pet-card--beach-room .pet-avatar__ground,
+.pet-card--library-room .pet-avatar__ground,
+.pet-card--neon-arcade-room .pet-avatar__ground {
   opacity: 0;
 }
 
