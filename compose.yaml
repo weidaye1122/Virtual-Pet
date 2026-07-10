@@ -1,7 +1,7 @@
 services:
-  virtualpet:
+  virtual-pet:
     build: .
-    container_name: VirtualPet
+    container_name: virtual-pet
     ports:
       - '4173:4173'
     environment:

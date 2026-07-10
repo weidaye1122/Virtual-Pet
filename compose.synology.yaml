@@ -1,12 +1,12 @@
 services:
   # 服务名称，群晖导入后会显示这个名字
-  virtualpet:
+  virtual-pet:
     # 默认从 Docker Hub 拉镜像
-    image: weidaye1122/virtualpet:latest
+    image: weidaye1122/virtual-pet:latest
     # 如果你之后改用 GitHub Container Registry，可以把上一行替换成：
-    # image: ghcr.io/weidaye1122/virtualpet:latest
+    # image: ghcr.io/weidaye1122/virtual-pet:latest
     # 容器名称
-    container_name: VirtualPet
+    container_name: virtual-pet
     # 开机自启，容器异常退出后自动重启
     restart: unless-stopped
     ports:
@@ -26,7 +26,7 @@ services:
       SESSION_COOKIE_SECURE: "false"
     volumes:
       # 左边是群晖本地目录，右边是容器目录
-      # 存档最终会落到 /volume1/docker/virtualpet/pet-state.json
+      # 存档最终会落到 /volume1/docker/virtual-pet/pet-state.json
       # 镜像内服务使用非 root 用户运行，请确保这个目录允许 UID 1000 写入
       # 如果你想换目录，只改左边这一段就行
-      - /volume1/docker/virtualpet:/data
+      - /volume1/docker/virtual-pet:/data

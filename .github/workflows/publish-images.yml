@@ -1,5 +1,5 @@
-name: Publish Docker Images
-run-name: "Release version ${{ github.ref_name }}\nPublish Docker Images"
+name: Publish Virtual-Pet Docker Images
+run-name: "Release Virtual-Pet version ${{ github.ref_name }}\nPublish Docker Images"
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: virtualpet
+  IMAGE_NAME: virtual-pet
   DOCKERHUB_NAMESPACE: weidaye1122
 
 jobs:
@@ -71,7 +71,7 @@ jobs:
             ${{ steps.vars.outputs.dockerhub_image }}:${{ steps.vars.outputs.version }}
             ${{ steps.vars.outputs.dockerhub_image }}:latest
           labels: |
-            org.opencontainers.image.title=VirtualPet
-            org.opencontainers.image.description=VirtualPet React + Vite app with a lightweight state persistence server.
+            org.opencontainers.image.title=Virtual Pet
+            org.opencontainers.image.description=Virtual Pet React + Vite app with a lightweight state persistence server.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ steps.vars.outputs.version }}
