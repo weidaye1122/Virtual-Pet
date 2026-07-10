@@ -1,17 +1,17 @@
 name: Publish Docker Images
+run-name: "Release version ${{ github.ref_name }}\nPublish Docker Images"
 
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*.*.*'
 
 permissions:
   contents: read
   packages: write
 
 env:
-  IMAGE_NAME: electronic-pet-cat
+  IMAGE_NAME: virtualpet
   DOCKERHUB_NAMESPACE: weidaye1122
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
       - name: Derive release tags
         id: vars
         run: |
-          VERSION="$(node -e "console.log(JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version)")"
+          VERSION="${GITHUB_REF_NAME#v}"
 
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
           echo "ghcr_image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}" >> "${GITHUB_OUTPUT}"
@@ -71,7 +71,7 @@ jobs:
             ${{ steps.vars.outputs.dockerhub_image }}:${{ steps.vars.outputs.version }}
             ${{ steps.vars.outputs.dockerhub_image }}:latest
           labels: |
-            org.opencontainers.image.title=Electronic Pet Cat
-            org.opencontainers.image.description=React + Vite electronic pet cat app with a lightweight state persistence server.
+            org.opencontainers.image.title=VirtualPet
+            org.opencontainers.image.description=VirtualPet React + Vite app with a lightweight state persistence server.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ steps.vars.outputs.version }}

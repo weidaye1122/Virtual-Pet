@@ -1,7 +1,7 @@
 services:
-  cat-pet-growth:
+  virtualpet:
     build: .
-    container_name: cat-pet-growth
+    container_name: VirtualPet
     ports:
       - '4173:4173'
     environment:

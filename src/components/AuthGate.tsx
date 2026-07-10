@@ -193,7 +193,7 @@ export const AuthGate = () => {
         </div>
 
         <div className="auth-copy">
-          <p className="eyebrow">小猫成长记</p>
+          <p className="eyebrow">VirtualPet</p>
           <h1>{isStoreReady ? (isSetupMode ? '第一次见面' : '欢迎回来') : '正在准备'}</h1>
           <p className={isStoreReady && isSetupMode ? 'auth-copy__description--stacked' : ''}>
             {isStoreReady
